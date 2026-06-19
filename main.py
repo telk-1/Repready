@@ -8,11 +8,12 @@ ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
 @app.route('/')
 def home():
-    return send_from_directory('.', 'fyrro.html')
+    return send_from_directory('.', 'ptrain.html')
 
 @app.route('/api/generate', methods=['POST', 'OPTIONS'])
 def generate():
     if request.method == 'OPTIONS':
+        # Handle CORS preflight
         response = jsonify({'ok': True})
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
@@ -20,7 +21,7 @@ def generate():
         return response
 
     if not ANTHROPIC_API_KEY:
-        return jsonify({'error': {'message': 'ANTHROPIC_API_KEY not set in Render Environment'}}), 500
+        return jsonify({'error': {'message': 'ANTHROPIC_API_KEY not set in Replit Secrets'}}), 500
 
     try:
         body = request.get_json()
