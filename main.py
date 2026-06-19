@@ -38,7 +38,7 @@ def generate():
                 'max_tokens': body.get('max_tokens', 4000),
                 'messages': body.get('messages'),
             },
-            timeout=60,
+            timeout=120,
         )
 
         response = jsonify(anthropic_response.json())
