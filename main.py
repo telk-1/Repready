@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 import os
+import sys
+
+sys.stdout.reconfigure(line_buffering=True)
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 
@@ -30,7 +33,7 @@ def create_checkout_session():
         cancel_url = body.get('cancelUrl')
         trial_days = body.get('trialDays')
 
-        print(f"CHECKOUT DEBUG: price_id={price_id} success_url={success_url} cancel_url={cancel_url} trial_days={trial_days}")
+        print(f"CHECKOUT DEBUG: price_id={price_id} success_url={success_url} cancel_url={cancel_url} trial_days={trial_days}", flush=True)
 
         form_data = {
             'mode': 'subscription',
@@ -50,7 +53,7 @@ def create_checkout_session():
         )
         data = stripe_response.json()
 
-        print(f"CHECKOUT DEBUG: Stripe status={stripe_response.status_code} response={data}")
+        print(f"CHECKOUT DEBUG: Stripe status={stripe_response.status_code} response={data}", flush=True)
 
         if stripe_response.status_code != 200:
             response = jsonify({'error': {'message': data.get('error', {}).get('message', 'Stripe error')}})
