@@ -1113,7 +1113,8 @@ async function handleUpgrade(planKey) {
     }
   } catch(err) {
     console.error(err);
-    toast('Payment error. Please try again.', 'error');
+    toast('toast('Error: ' + err.message, 'error');
+. Please try again.', 'error');
   }
 }
 
