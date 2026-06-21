@@ -30,6 +30,8 @@ def create_checkout_session():
         cancel_url = body.get('cancelUrl')
         trial_days = body.get('trialDays')
 
+        print(f"CHECKOUT DEBUG: price_id={price_id} success_url={success_url} cancel_url={cancel_url} trial_days={trial_days}")
+
         form_data = {
             'mode': 'subscription',
             'line_items[0][price]': price_id,
@@ -48,6 +50,8 @@ def create_checkout_session():
         )
         data = stripe_response.json()
 
+        print(f"CHECKOUT DEBUG: Stripe status={stripe_response.status_code} response={data}")
+
         if stripe_response.status_code != 200:
             response = jsonify({'error': {'message': data.get('error', {}).get('message', 'Stripe error')}})
             response.headers['Access-Control-Allow-Origin'] = '*'
@@ -58,6 +62,7 @@ def create_checkout_session():
         return response
 
     except Exception as e:
+        print(f"CHECKOUT DEBUG: Exception: {str(e)}")
         response = jsonify({'error': {'message': str(e)}})
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response, 500
