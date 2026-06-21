@@ -3,8 +3,7 @@ import requests
 import os
 import sys
 
-sys.stdout.reconfigure(line_buffering=True)
-
+sys.stdout.reconfigure(line_buffering=u
 app = Flask(__name__, static_folder='.', static_url_path='')
 
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
