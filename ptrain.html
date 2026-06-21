@@ -499,7 +499,7 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 const WORKER_URL = '/api/generate';
 
 // ── STRIPE CONFIG ─────────────────────────────────────────────────
-const STRIPE_PK   = 'pk_live_51RpW4YLJBOEFuMCRL3vQlfKira3C1QwUJVSFytbOJedgKcMM3BJMSIxmE6uRFHFYgnOY0KlBioxJ3GCzWDJjx7u0002rmAeVc2';
+// Note: actual checkout now happens server-side via /api/create-checkout-session
 const PRICE_PRO   = 'price_1TjdU3LJBOEFuMCREb7kVI7v';
 const PRICE_COACH = 'price_1TjdPsLJBOEFuMCR4DbYjtJE';
 const PRICE_ELITE = 'price_1TjdOhLJBOEFuMCRdfMV2ycl';
@@ -1086,22 +1086,23 @@ async function handleUpgrade(planKey) {
   const p = PLANS[planKey];
   if (!p.priceId) { toast('Coming soon!', 'error'); return; }
   try {
-    if (!window.Stripe) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://js.stripe.com/v3/';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-    const stripe = window.Stripe(STRIPE_PK);
-    const { error } = await stripe.redirectToCheckout({
-      lineItems: [{ price: p.priceId, quantity: 1 }],
-      mode: 'subscription',
-      successUrl: window.location.origin + window.location.pathname + '?success=true',
-      cancelUrl:  window.location.origin + window.location.pathname + '?cancelled=true',
+    const res = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        priceId: p.priceId,
+        trialDays: planKey === 'pro' ? 7 : null,
+        successUrl: window.location.origin + window.location.pathname + '?success=true&plan=' + planKey,
+        cancelUrl:  window.location.origin + window.location.pathname + '?cancelled=true',
+      }),
     });
-    if (error) throw error;
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error('No checkout URL returned');
+    }
   } catch(err) {
     console.error(err);
     toast('Payment error. Please try again.', 'error');
@@ -1112,6 +1113,13 @@ async function handleUpgrade(planKey) {
 (function() {
   const p = new URLSearchParams(window.location.search);
   if (p.get('success') === 'true') {
+    const purchasedPlan = p.get('plan');
+    if (purchasedPlan && PLANS[purchasedPlan]) {
+      state.userPlan = purchasedPlan;
+      state.plansUsed = 0;
+      renderHome();
+      updateNav();
+    }
     toast('Payment successful! Welcome to PTrAIn 🎉');
     window.history.replaceState({}, '', window.location.pathname);
   }
