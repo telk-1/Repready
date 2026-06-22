@@ -1,9 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 import os
-import sys
 
-sys.stdout.reconfigure(line_buffering=u
 app = Flask(__name__, static_folder='.', static_url_path='')
 
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
@@ -32,7 +30,7 @@ def create_checkout_session():
         cancel_url = body.get('cancelUrl')
         trial_days = body.get('trialDays')
 
-        print(f"CHECKOUT DEBUG: price_id={price_id} success_url={success_url} cancel_url={cancel_url} trial_days={trial_days}", flush=True)
+        print(f"CHECKOUT: price_id={price_id}")
 
         form_data = {
             'mode': 'subscription',
@@ -52,7 +50,7 @@ def create_checkout_session():
         )
         data = stripe_response.json()
 
-        print(f"CHECKOUT DEBUG: Stripe status={stripe_response.status_code} response={data}", flush=True)
+        print(f"STRIPE: status={stripe_response.status_code}")
 
         if stripe_response.status_code != 200:
             response = jsonify({'error': {'message': data.get('error', {}).get('message', 'Stripe error')}})
@@ -64,7 +62,7 @@ def create_checkout_session():
         return response
 
     except Exception as e:
-        print(f"CHECKOUT DEBUG: Exception: {str(e)}")
+        print(f"ERROR: {str(e)}")
         response = jsonify({'error': {'message': str(e)}})
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response, 500
