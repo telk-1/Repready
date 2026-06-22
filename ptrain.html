@@ -588,26 +588,26 @@ Equipment: ${state.form.equipment}
 Focus: ${state.form.muscles.length ? state.form.muscles.join(', ') : 'Full Body'}
 Injuries/notes: ${inj}
 
-CRITICAL: Respond ONLY with valid JSON — no markdown, no backticks, no explanation, nothing before or after the JSON object:
+CRITICAL: Respond ONLY with valid, complete JSON. Keep descriptions brief (under 20 words each) to avoid truncation. No markdown, no backticks, nothing before or after the JSON:
 {
   "planName": "string",
-  "overview": "2-3 sentence overview",
+  "overview": "brief 1-2 sentence overview",
   "weeklyVolume": number,
   "estimatedCalories": number,
   "days": [
     {
-      "day": "Day 1 - Chest & Triceps",
-      "focus": "string",
-      "warmup": "string",
+      "day": "Day 1 - Focus",
+      "focus": "brief string",
+      "warmup": "brief string",
       "exercises": [
-        {"name":"string","sets":3,"reps":"8-10","weight":"70kg or Bodyweight or 60% 1RM","rest":"90s","notes":"brief form tip"}
+        {"name":"string","sets":3,"reps":"8-10","weight":"70kg","rest":"90s","notes":"brief tip"}
       ],
-      "cooldown": "string"
+      "cooldown": "brief string"
     }
   ],
-  "nutritionTips": ["string","string","string"],
-  "progressionScheme": "string",
-  "deloadRecommendation": "string"
+  "nutritionTips": ["tip1","tip2","tip3"],
+  "progressionScheme": "brief string",
+  "deloadRecommendation": "brief string"
 }`;
 
   try {
@@ -637,9 +637,27 @@ CRITICAL: Respond ONLY with valid JSON — no markdown, no backticks, no explana
     try {
       parsed = JSON.parse(clean);
     } catch(parseErr) {
-      const match = clean.match(/\{[\s\S]*\}/);
+      // Try to extract and repair JSON
+      let jsonStr = clean;
+      const match = clean.match(/\{[\s\S]*/);
       if (match) {
-        parsed = JSON.parse(match[0]);
+        jsonStr = match[0];
+        // Try to repair truncated JSON by closing open brackets
+        let opens = (jsonStr.match(/\[/g) || []).length;
+        let closes = (jsonStr.match(/\]/g) || []).length;
+        let openBraces = (jsonStr.match(/\{/g) || []).length;
+        let closeBraces = (jsonStr.match(/\}/g) || []).length;
+        // Remove trailing incomplete data
+        jsonStr = jsonStr.replace(/,\s*$/, '');
+        jsonStr = jsonStr.replace(/:\s*$/, ': ""');
+        // Close any open arrays and objects
+        for (let i = closes; i < opens; i++) jsonStr += ']';
+        for (let i = closeBraces; i < openBraces; i++) jsonStr += '}';
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch(e) {
+          throw new Error('AI returned invalid format. Please try again.');
+        }
       } else {
         throw new Error('AI returned invalid format. Please try again.');
       }
