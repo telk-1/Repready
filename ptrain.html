@@ -1000,29 +1000,15 @@ function renderPricing() {
 
 async function handleUpgrade(planKey) {
   if (planKey === 'free') return;
-  const p = PLANS[planKey];
-  if (!p.priceId) { toast('Coming soon!', 'error'); return; }
-  try {
-    const res = await fetch('/api/create-checkout-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        priceId: p.priceId,
-        trialDays: planKey === 'pro' ? 7 : null,
-        successUrl: window.location.origin + window.location.pathname + '?success=true&plan=' + planKey,
-        cancelUrl:  window.location.origin + window.location.pathname + '?cancelled=true',
-      }),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      throw new Error('No checkout URL returned');
-    }
-  } catch(err) {
-    console.error(err);
-    toast('Error: ' + err.message, 'error');
+  const links = {
+    pro:   'https://buy.stripe.com/dRm00kfzyaBo6Fu1aRdnW0j',
+    coach: 'https://buy.stripe.com/eVq5kE3QQgZM2pe1aRdnW0k',
+    elite: 'https://buy.stripe.com/eVq00k7328tgd3S6vbdnW0l',
+  };
+  if (links[planKey]) {
+    window.location.href = links[planKey];
+  } else {
+    toast('Coming soon!', 'error');
   }
 }
 
