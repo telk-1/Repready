@@ -92,7 +92,7 @@ def generate():
             },
             json={
                 'model': body.get('model', 'claude-sonnet-4-6'),
-                'max_tokens': body.get('max_tokens', 4000),
+                'max_tokens': body.get('max_tokens', 8000),
                 'messages': body.get('messages'),
             },
             timeout=120,
