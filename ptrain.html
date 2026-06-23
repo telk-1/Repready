@@ -211,32 +211,13 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 
 <div id="toast"></div>
 
-<!-- ONBOARDING -->
-<div id="onboarding" style="display:none;position:fixed;inset:0;background:#0a0a0d;z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:32px">
-  <div id="ob-slides" style="width:100%;max-width:360px;text-align:center">
-    <div class="ob-slide">
-      <div style="font-size:64px;margin-bottom:20px">⚡</div>
-      <h2 style="font-family:'Inter Tight',sans-serif;font-size:28px;font-weight:900;color:#f5f5f0;margin-bottom:12px;letter-spacing:-0.02em">Your personal trainer.<br><span style="color:#ff5a1f">In your pocket.</span></h2>
-      <p style="color:#8b8b95;font-size:15px;line-height:1.6">Built by a real PT. Powered by AI. Tell us your goal and get a complete programme in seconds.</p>
-    </div>
-    <div class="ob-slide" style="display:none">
-      <div style="font-size:64px;margin-bottom:20px">🏋️</div>
-      <h2 style="font-family:'Inter Tight',sans-serif;font-size:28px;font-weight:900;color:#f5f5f0;margin-bottom:12px;letter-spacing:-0.02em">Plans built<br><span style="color:#ff5a1f">just for you.</span></h2>
-      <p style="color:#8b8b95;font-size:15px;line-height:1.6">Your age, kit, injuries, schedule — every detail shapes your programme. No generic templates. Ever.</p>
-    </div>
-    <div class="ob-slide" style="display:none">
-      <div style="font-size:64px;margin-bottom:20px">🚀</div>
-      <h2 style="font-family:'Inter Tight',sans-serif;font-size:28px;font-weight:900;color:#f5f5f0;margin-bottom:12px;letter-spacing:-0.02em">Ready to<br><span style="color:#ff5a1f">get started?</span></h2>
-      <p style="color:#8b8b95;font-size:15px;line-height:1.6">One free plan, no card needed. Upgrade anytime for unlimited access and full coaching features.</p>
-    </div>
-  </div>
-  <div style="display:flex;gap:8px;margin:28px 0" id="ob-dots">
-    <div style="width:8px;height:8px;border-radius:50%;background:#ff5a1f"></div>
-    <div style="width:8px;height:8px;border-radius:50%;background:#2a2a30"></div>
-    <div style="width:8px;height:8px;border-radius:50%;background:#2a2a30"></div>
-  </div>
-  <button id="ob-btn" onclick="onboardingNext()" style="width:100%;max-width:360px;padding:17px;background:#ff5a1f;border:none;color:#fff;font-weight:900;font-size:16px;border-radius:14px;box-shadow:0 8px 28px rgba(255,90,31,0.4)">Next →</button>
-  <button onclick="finishOnboarding()" style="background:none;border:none;color:#5a5a64;font-size:13px;margin-top:16px;padding:8px">Skip</button>
+<!-- SPLASH - shows briefly then auto-dismisses, or tap to skip -->
+<div id="onboarding" style="display:none;position:fixed;inset:0;background:#0a0a0d;z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center" onclick="finishOnboarding()">
+  <div style="font-size:56px;margin-bottom:20px">⚡</div>
+  <h1 style="font-family:'Inter Tight',sans-serif;font-size:32px;font-weight:900;color:#f5f5f0;margin-bottom:12px;letter-spacing:-0.03em">Your PT.<br><span style="color:#ff5a1f">In your pocket.</span></h1>
+  <p style="color:#8b8b95;font-size:16px;line-height:1.6;max-width:300px;margin:0 auto 32px">Tell us your goal. Get a complete programme, built by AI, backed by real PT expertise.</p>
+  <button onclick="finishOnboarding()" style="background:#ff5a1f;border:none;color:#fff;font-weight:900;font-size:16px;padding:17px 40px;border-radius:14px;box-shadow:0 8px 28px rgba(255,90,31,0.4)">Build my plan ⚡</button>
+  <div style="color:#5a5a64;font-size:12px;margin-top:16px">Free to start · No card needed</div>
 </div>
 
 <!-- REST TIMER -->
@@ -284,26 +265,10 @@ input[type=range]{width:100%;accent-color:var(--ember)}
       <div class="stat-card" onclick="showTab('history')" style="cursor:pointer"><div class="stat-val" id="stat-streak" style="color:#f59e0b">0🔥</div><div class="stat-lbl">Day streak</div></div>
     </div>
 
-    <!-- WATER TRACKER -->
-    <div class="card" style="margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div class="card-title" style="margin-bottom:0">💧 Daily water</div>
-        <span id="water-count" style="color:#3b82f6;font-weight:900;font-size:16px;font-family:'Inter Tight',sans-serif">0 / 8 glasses</span>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${Array(8).fill(0).map((_,i) => `<div id="w${i}" onclick="addWater(${i})" style="width:32px;height:32px;border-radius:50%;background:rgba(59,130,246,0.13);border:2px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer">💧</div>`).join('')}
-      </div>
-    </div>
-
     <div id="recent-activity" style="display:none">
       <div class="section-hdr">Recent activity</div>
       <div id="activity-list"></div>
     </div>
-
-    <!-- QUICK WORKOUT -->
-    <button onclick="quickWorkout()" style="width:100%;margin-bottom:12px;padding:14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:14px;color:#4ade80;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px">
-      ⚡ Quick 20-min workout
-    </button>
 
     <div class="upsell" onclick="showTab('pricing')">
       <div class="upsell-tag">⚡ PRO — £6.99/month</div>
@@ -311,9 +276,16 @@ input[type=range]{width:100%;accent-color:var(--ember)}
       <div class="upsell-sub">Less than one protein bar a week. Tap to upgrade →</div>
     </div>
 
-    <button onclick="sharePTrAIn()" style="width:100%;margin-top:12px;padding:14px;background:rgba(245,245,240,0.05);border:1px solid rgba(245,245,240,0.09);border-radius:14px;color:#f5f5f0;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px">
-      📲 Share PTrAIn with a friend
-    </button>
+    <div style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:17px;padding:18px;margin-top:12px;cursor:pointer" onclick="sharePTrAIn()">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px">🎁</div>
+        <div>
+          <div style="color:#4ade80;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Refer a friend</div>
+          <div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">Share PTrAIn, grow together</div>
+          <div style="color:#8b8b95;font-size:12px">Tap to share your personal invite link →</div>
+        </div>
+      </div>
+    </div>
 
     <div class="card" style="margin-top:16px">
       <div class="card-title">Today's coaching tip</div>
@@ -376,18 +348,20 @@ input[type=range]{width:100%;accent-color:var(--ember)}
     </div>
 
     <div class="card">
-      <div class="card-title">Diet preference (optional)</div>
-      <div class="pills" id="pills-diet"></div>
+      <div class="card-title">Today's context</div>
+      <div style="margin-bottom:13px">
+        <div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Training vibe</div>
+        <div class="pills" id="pills-vibe"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Diet preference</div>
+        <div class="pills" id="pills-diet"></div>
+      </div>
     </div>
 
     <div class="card">
       <div class="card-title">Injuries & notes</div>
       <textarea class="input" id="f-injuries" rows="3" placeholder="Any injuries, limitations, or special requests…"></textarea>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Today's training vibe</div>
-      <div class="pills" id="pills-vibe"></div>
     </div>
 
     <button class="btn-primary" id="generate-btn" onclick="generatePlan()">
@@ -416,6 +390,29 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 
   <div id="tab-history" class="tab">
     <h2 style="color:var(--text);font-weight:900;font-size:23px;margin-bottom:21px;font-family:'Inter Tight',sans-serif;letter-spacing:-0.02em">Training history</h2>
+
+    <!-- WEEKLY PROGRESS SUMMARY -->
+    <div id="weekly-summary" style="background:linear-gradient(120deg,rgba(255,90,31,0.1),rgba(168,85,247,0.05));border:1px solid rgba(255,90,31,0.22);border-radius:17px;padding:18px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px">
+        <div style="color:#ff8a4f;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em">📊 This week</div>
+        <div id="weekly-dates" style="color:var(--text-faint);font-size:11px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:13px">
+        <div style="background:rgba(0,0,0,0.2);border-radius:11px;padding:11px;text-align:center">
+          <div id="weekly-sessions" style="color:#ff5a1f;font-weight:900;font-size:20px;font-family:'Inter Tight',sans-serif">0</div>
+          <div style="color:#8b8b95;font-size:10px;font-weight:600;margin-top:2px">Sessions</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border-radius:11px;padding:11px;text-align:center">
+          <div id="weekly-streak" style="color:#f59e0b;font-weight:900;font-size:20px;font-family:'Inter Tight',sans-serif">0🔥</div>
+          <div style="color:#8b8b95;font-size:10px;font-weight:600;margin-top:2px">Streak</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border-radius:11px;padding:11px;text-align:center">
+          <div id="weekly-pbs" style="color:#a855f7;font-weight:900;font-size:20px;font-family:'Inter Tight',sans-serif">0</div>
+          <div style="color:#8b8b95;font-size:10px;font-weight:600;margin-top:2px">PBs hit</div>
+        </div>
+      </div>
+      <div id="weekly-weight-change" style="display:none;background:rgba(34,197,94,0.1);border-radius:9px;padding:9px 12px;font-size:12px;color:#4ade80;font-weight:700;text-align:center"></div>
+    </div>
     <div class="stat-grid">
       <div class="stat-card"><div class="stat-val" id="hist-total" style="color:var(--ember)">0</div><div class="stat-lbl">Total</div></div>
       <div class="stat-card"><div class="stat-val" id="hist-week" style="color:var(--success)">0</div><div class="stat-lbl">This week</div></div>
@@ -438,6 +435,12 @@ input[type=range]{width:100%;accent-color:var(--ember)}
       <div id="pb-list"></div>
     </div>
 
+    <!-- ACHIEVEMENT BADGES -->
+    <div id="badges-section" style="margin-top:20px">
+      <div class="section-hdr">🎖️ Achievements</div>
+      <div id="badges-list" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+    </div>
+
     <div id="saved-plans-section" style="display:none;margin-top:26px">
       <div class="section-hdr" id="saved-count">Saved plans</div>
       <div id="saved-plans-list"></div>
@@ -454,7 +457,7 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 
   <div id="tab-pricing" class="tab">
     <div class="pricing-hero">
-      <div class="pricing-badge">⚡ 7-day free trial. Cancel anytime.</div>
+      <div class="pricing-badge">⚡ Cancel anytime. No commitment.</div>
       <h2>A personal trainer in<br><span>your pocket, for less.</span></h2>
       <p>Beginner or advanced, 18 or 80 — get a programme built for you.</p>
     </div>
@@ -477,6 +480,17 @@ input[type=range]{width:100%;accent-color:var(--ember)}
       <span class="trust-item">💬 Real support</span>
     </div>
 
+    <!-- FOUNDING MEMBERS / PROOF SECTION -->
+    <div style="background:rgba(255,90,31,0.06);border:1px solid rgba(255,90,31,0.2);border-radius:17px;padding:20px;margin-bottom:20px;text-align:center">
+      <div style="font-size:28px;margin-bottom:10px">🚀</div>
+      <div style="color:#f5f5f0;font-weight:900;font-size:17px;font-family:'Inter Tight',sans-serif;margin-bottom:8px">Be a founding member</div>
+      <div style="color:#8b8b95;font-size:13px;line-height:1.6;margin-bottom:16px">PTrAIn is in early access. Founding members get locked-in pricing, direct input into new features, and first access to everything we build next.</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <div style="background:rgba(255,90,31,0.13);border:1px solid rgba(255,90,31,0.22);border-radius:10px;padding:8px 14px;color:#ff8a4f;font-size:12px;font-weight:700">🔒 Price locked forever</div>
+        <div style="background:rgba(255,90,31,0.13);border:1px solid rgba(255,90,31,0.22);border-radius:10px;padding:8px 14px;color:#ff8a4f;font-size:12px;font-weight:700">⚡ Shape the roadmap</div>
+      </div>
+    </div>
+
     <div class="section-hdr">What members say</div>
     <div class="review-card"><div class="stars">★★★★★</div><div class="review-text">"I'm 54, never set foot in a gym before. It gave me a plan I actually understood and could follow from day one."</div><div class="review-author">Helen P. <span class="review-role">· Complete Beginner</span></div></div>
     <div class="review-card"><div class="stars">★★★★★</div><div class="review-text">"Generated a better programme than my old PT charged £100/month for. No contest."</div><div class="review-author">Matt K. <span class="review-role">· Amateur Powerlifter</span></div></div>
@@ -485,7 +499,7 @@ input[type=range]{width:100%;accent-color:var(--ember)}
     <div class="card" style="margin-top:16px">
       <div class="card-title">Questions</div>
       <div class="faq-item" style="border:none;padding:0;margin:0"><div class="faq-q">Is PTrAIn just for gym regulars?</div><div class="faq-a">No — it's built for anyone. Tell it your age, goals, and experience level and it adapts. Complete beginners welcome.</div></div>
-      <div class="faq-item"><div class="faq-q">How does the free trial work?</div><div class="faq-a">7 days of full Pro access. Cancel anytime before it ends and you won't be charged.</div></div>
+      <div class="faq-item"><div class="faq-q">How does billing work?</div><div class="faq-a">Monthly subscription, cancel anytime. No contracts, no hidden fees. Cancel before your next billing date and you won't be charged again.</div></div>
       <div class="faq-item"><div class="faq-q">What happens to my plans if I cancel?</div><div class="faq-a">You keep access until the end of your billing period. History stays saved.</div></div>
       <div class="faq-item"><div class="faq-q">Is there a free plan with no card needed?</div><div class="faq-a">Yes — Starter gives you 1 plan a month, forever free, no card required.</div></div>
       <div class="faq-item"><div class="faq-q">I'm a PT — is Coach right for me?</div><div class="faq-a">Absolutely. 50 plans a month, client management, branded exports. Most PTs see ROI in the first week.</div></div>
@@ -528,15 +542,13 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 <script>
 const WORKER_URL = '/api/generate';
 
-const PRICE_PRO   = 'price_1TjdU3LJBOEFuMCREb7kVI7v';
-const PRICE_COACH = 'price_1TjdPsLJBOEFuMCR4DbYjtJE';
-const PRICE_ELITE = 'price_1TjdOhLJBOEFuMCRdfMV2ycl';
+// ── PLANS ─────────────────────────────────────────────────────────
 
 const PLANS = {
-  free:  { name:'Starter', emoji:'🏃', price:0,    priceId:null,        limit:1,  pitch:'No card needed', features:['1 AI plan/month','Basic exercise library','Text export'], btnClass:'gray', cta:'Start Free' },
-  pro:   { name:'Pro',     emoji:'⚡', price:6.99, priceId:PRICE_PRO,   limit:10, pitch:'7-day free trial, then £6.99/mo', popular:true, features:['10 AI plans/month','Full exercise library with GIF demos','PDF export + workout history','Progress tracking','Nutrition guidance per plan'], btnClass:'orange', cta:'Start free for 7 days' },
-  coach: { name:'Coach',   emoji:'🏆', price:29,   priceId:PRICE_COACH, limit:50, pitch:'For trainers and serious self-coaches', features:['50 AI plans/month','Client management dashboard','Branded PDF exports','Client progress tracking','Priority support'], btnClass:'blue', cta:'Go Coach — £29/mo' },
-  elite: { name:'Elite',   emoji:'👑', price:49,   priceId:PRICE_ELITE, limit:-1, pitch:'Unlimited. Unmatched.', elite:true, features:['Unlimited AI plans','Everything in Coach','White-label exports','Team accounts (up to 5 PTs)','API access','Dedicated support'], btnClass:'purple', cta:'Go Elite — £49/mo' },
+  free:  { name:'Starter', emoji:'🏃', price:0,    limit:1,  pitch:'No card needed', features:['1 AI plan/month','Basic exercise library','Text export'], btnClass:'gray', cta:'Start Free' },
+  pro:   { name:'Pro',     emoji:'⚡', price:6.99, limit:10, pitch:'Less than one PT session. Cancel anytime.', popular:true, features:['10 AI plans/month','Full exercise library with GIF demos','PDF export + workout history','Progress tracking','Nutrition guidance per plan'], btnClass:'orange', cta:'Go Pro — £6.99/mo' },
+  coach: { name:'Coach',   emoji:'🏆', price:29,   limit:50, pitch:'For trainers and serious self-coaches', features:['50 AI plans/month','Client management dashboard','Branded PDF exports','Client progress tracking','Priority support'], btnClass:'blue', cta:'Go Coach — £29/mo' },
+  elite: { name:'Elite',   emoji:'👑', price:49,   limit:-1, pitch:'Unlimited. Unmatched.', elite:true, features:['Unlimited AI plans','Everything in Coach','White-label exports','Team accounts (up to 5 PTs)','API access','Dedicated support'], btnClass:'purple', cta:'Go Elite — £49/mo' },
 };
 
 const GOALS   = ['Build Muscle','Lose Fat','Increase Strength','Improve Endurance','Athletic Performance','Flexibility & Mobility','Rehabilitation','General Fitness'];
@@ -561,6 +573,7 @@ let state = {
   completedDays: {},
   annualToggle: false,
   pbs: {},
+  earnedBadges: [],
   weightLog: [],
   waterToday: 0,
   waterDate: '',
@@ -635,16 +648,8 @@ function renderHome() {
       else check.setDate(check.getDate()-1);
     }
   }
+  // Update streak display
   document.getElementById('stat-streak').textContent = streak + '🔥';
-
-  // Water tracker
-  const todayStr = new Date().toLocaleDateString('en-GB');
-  if (state.waterDate !== todayStr) { state.waterToday = 0; state.waterDate = todayStr; }
-  document.getElementById('water-count').textContent = state.waterToday + ' / 8 glasses';
-  for (let i = 0; i < 8; i++) {
-    const el = document.getElementById('w'+i);
-    if (el) el.style.background = i < state.waterToday ? 'rgba(59,130,246,0.5)' : 'rgba(59,130,246,0.13)';
-  }
 
   document.getElementById('view-plan-btn').style.display = state.plan ? 'flex' : 'none';
 
@@ -723,7 +728,7 @@ async function generatePlan() {
 
   const gifDbPromise = loadExerciseDb();
 
-  const prompt = `You are PTrAIn, an AI personal trainer and nutrition coach built on real PT expertise. You coach people of every age, body type, fitness level and health background. Adjust tone, exercise selection, and intensity sensibly for the person described. Generate a complete ${state.form.days}-day training programme WITH a daily nutrition plan.
+  const prompt = `You are PTrAIn, an AI personal trainer and nutrition coach built on real certified PT expertise. You coach people of every age, body type, fitness level and health background. You don't just generate plans — you explain the reasoning behind every key decision so users feel genuinely coached, not just given a template. Adjust tone, exercise selection, and intensity sensibly for the person described. Generate a complete ${state.form.days}-day training programme WITH a daily nutrition plan.
 
 Profile: Name=${name}, Age=${age}, Weight=${weight}kg, Height=${height}cm
 Goal: ${state.form.goal} | Level: ${state.form.level} | Days: ${state.form.days}/week | Duration: ${dur}min
@@ -734,8 +739,8 @@ Injuries/notes: ${inj}
 CRITICAL: Respond ONLY with valid, complete JSON. Keep all text brief to avoid truncation. No markdown, no backticks:
 {
   "planName": "string",
-  "coachMessage": "personal 1-sentence motivational message addressing ${name} directly",
-  "overview": "brief 1-2 sentence overview",
+  "coachMessage": "personal 1-sentence message to ${name} explaining WHY this specific plan suits them right now",
+  "overview": "2 sentences: what the plan does AND the key reason why this approach suits ${name}'s specific goal and situation",
   "weeklyVolume": number,
   "estimatedCalories": number,
   "days": [
@@ -744,7 +749,7 @@ CRITICAL: Respond ONLY with valid, complete JSON. Keep all text brief to avoid t
       "focus": "brief string",
       "warmup": "brief string",
       "exercises": [
-        {"name":"string","sets":3,"reps":"8-10","weight":"70kg","rest":"90s","notes":"brief tip"}
+        {"name":"string","sets":3,"reps":"8-10","weight":"70kg","rest":"90s","notes":"brief form tip or WHY this exercise for their goal"}
       ],
       "cooldown": "brief string"
     }
@@ -762,7 +767,7 @@ CRITICAL: Respond ONLY with valid, complete JSON. Keep all text brief to avoid t
     ]
   },
   "nutritionTips": ["tip1","tip2","tip3"],
-  "progressionScheme": "brief string",
+  "progressionScheme": "brief string explaining HOW and WHY to progress over the coming weeks",
   "deloadRecommendation": "brief string"
 }`;
 
@@ -1131,8 +1136,8 @@ function rateSession(dayName, i, planId, rating, overlay) {
       <input class="input" id="pb-exercise" placeholder="Exercise name (e.g. Bench Press)" style="margin-bottom:10px">
       <input class="input" id="pb-weight" placeholder="Weight/reps (e.g. 80kg × 8)" style="margin-bottom:16px">
       <div style="display:flex;gap:10px">
-        <button onclick="savePB(this.closest('[style]'))" style="flex:1;padding:12px;background:#ff5a1f;border:none;border-radius:11px;color:#fff;font-weight:800;font-size:14px">Save PB 🏆</button>
-        <button onclick="this.closest('[style]').remove();renderPlan();toast('${dayName} done! ${rating} 🎯')" style="flex:1;padding:12px;background:rgba(245,245,240,0.07);border:1px solid rgba(245,245,240,0.09);border-radius:11px;color:#8b8b95;font-weight:700;font-size:13px">Skip</button>
+        <button onclick="savePB(this.closest('div[style*=\"position:fixed\"]'))" style="flex:1;padding:12px;background:#ff5a1f;border:none;border-radius:11px;color:#fff;font-weight:800;font-size:14px">Save PB 🏆</button>
+        <button onclick="this.closest('div[style*=\"position:fixed\"]').remove();renderPlan();toast('Session done! ${rating} 🎯')" style="flex:1;padding:12px;background:rgba(245,245,240,0.07);border:1px solid rgba(245,245,240,0.09);border-radius:11px;color:#8b8b95;font-weight:700;font-size:13px">Skip</button>
       </div>
     </div>`;
   document.body.appendChild(pbOverlay);
@@ -1145,7 +1150,9 @@ function savePB(overlay) {
     state.pbs[ex] = { weight: wt, date: new Date().toLocaleDateString('en-GB') };
     toast('New PB saved! 🏆 ' + ex + ' — ' + wt);
   }
-  overlay.remove();
+  // Find and remove the fixed overlay
+  const fixedOverlay = document.querySelector('div[style*="position:fixed"][style*="z-index:9999"]');
+  if (fixedOverlay) fixedOverlay.remove();
   renderPlan();
   renderHome();
 }
@@ -1189,6 +1196,67 @@ function renderHistory() {
     }
   }
   document.getElementById('hist-streak').textContent = streak + '🔥';
+
+  // Weekly progress summary
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  const fmt = d => d.toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+  document.getElementById('weekly-dates').textContent = fmt(weekStart) + ' – ' + fmt(weekEnd);
+  document.getElementById('weekly-sessions').textContent = week;
+  document.getElementById('weekly-streak').textContent = streak + '🔥';
+  const weekPBs = Object.values(state.pbs).filter(pb => {
+    try { const [d,m,y]=pb.date.split('/'); return (Date.now()-new Date(`${y}-${m}-${d}`)) < 604800000; } catch{return false;}
+  }).length;
+  document.getElementById('weekly-pbs').textContent = weekPBs;
+
+  // Weight change this week
+  const weekWeights = state.weightLog.filter(w => {
+    try { const [d,m,y]=w.date.split('/'); return (Date.now()-new Date(`${y}-${m}-${d}`)) < 604800000; } catch{return false;}
+  });
+  const weightEl = document.getElementById('weekly-weight-change');
+  if (weekWeights.length >= 2) {
+    const change = (weekWeights[0].weight - weekWeights[weekWeights.length-1].weight).toFixed(1);
+    const sign = change > 0 ? '+' : '';
+    weightEl.style.display = 'block';
+    weightEl.textContent = `⚖️ Weight change this week: ${sign}${change}kg`;
+    weightEl.style.color = change < 0 ? '#4ade80' : change > 0 ? '#f87171' : '#8b8b95';
+  } else {
+    weightEl.style.display = 'none';
+  }
+
+  // Achievement badges
+  const BADGES = [
+    { id:'first_workout', icon:'🏋️', label:'First Workout', check: () => state.history.length >= 1 },
+    { id:'three_streak',  icon:'🔥', label:'3-Day Streak',  check: () => streak >= 3 },
+    { id:'seven_streak',  icon:'⚡', label:'7-Day Streak',  check: () => streak >= 7 },
+    { id:'five_sessions', icon:'💪', label:'5 Workouts',    check: () => state.history.length >= 5 },
+    { id:'ten_sessions',  icon:'🎯', label:'10 Workouts',   check: () => state.history.length >= 10 },
+    { id:'first_pb',      icon:'🏆', label:'First PB',      check: () => Object.keys(state.pbs).length >= 1 },
+    { id:'first_weight',  icon:'⚖️', label:'Weight Tracker', check: () => state.weightLog.length >= 1 },
+    { id:'plan_saved',    icon:'📋', label:'Plan Saved',    check: () => state.saved.length >= 1 },
+  ];
+
+  const earnedNow = [];
+  const badgesList = document.getElementById('badges-list');
+  if (badgesList) {
+    badgesList.innerHTML = BADGES.map(b => {
+      const earned = b.check();
+      const wasEarned = state.earnedBadges && state.earnedBadges.includes(b.id);
+      if (earned && !wasEarned) earnedNow.push(b);
+      return `<div style="background:${earned ? 'rgba(255,90,31,0.12)' : 'rgba(255,255,255,0.03)'};border:1px solid ${earned ? 'rgba(255,90,31,0.3)' : 'rgba(255,255,255,0.07)'};border-radius:12px;padding:10px 13px;text-align:center;min-width:70px;opacity:${earned ? '1' : '0.4'}">
+        <div style="font-size:22px;margin-bottom:4px">${b.icon}</div>
+        <div style="color:${earned ? '#f5f5f0' : '#5a5a64'};font-size:10px;font-weight:700;line-height:1.3">${b.label}</div>
+      </div>`;
+    }).join('');
+
+    // Save newly earned badges and show toast
+    if (!state.earnedBadges) state.earnedBadges = [];
+    earnedNow.forEach(b => {
+      state.earnedBadges.push(b.id);
+      setTimeout(() => toast(`${b.icon} Achievement unlocked: ${b.label}!`), 500);
+    });
+  }
 
   const list = document.getElementById('history-list');
   if (state.history.length === 0) {
@@ -1489,24 +1557,17 @@ function quickWorkout() {
 }
 
 // ── ONBOARDING ────────────────────────────────────────────────────
-let obSlide = 0;
-function onboardingNext() {
-  const slides = document.querySelectorAll('.ob-slide');
-  const dots = document.querySelectorAll('#ob-dots div');
-  obSlide++;
-  if (obSlide >= slides.length) { finishOnboarding(); return; }
-  slides.forEach((s,i) => s.style.display = i === obSlide ? 'block' : 'none');
-  dots.forEach((d,i) => d.style.background = i === obSlide ? '#ff5a1f' : '#2a2a30');
-  if (obSlide === slides.length - 1) document.getElementById('ob-btn').textContent = "Let's go ⚡";
-}
+function onboardingNext() { finishOnboarding(); }
 function finishOnboarding() {
-  document.getElementById('onboarding').style.display = 'none';
+  const el = document.getElementById('onboarding');
+  if (el) el.style.display = 'none';
   try { localStorage.setItem('ptrain_onboarded','1'); } catch(e){}
 }
-// Show onboarding for first-time visitors
+// Show splash for first-time visitors only
 try {
   if (!localStorage.getItem('ptrain_onboarded')) {
-    document.getElementById('onboarding').style.display = 'flex';
+    const el = document.getElementById('onboarding');
+    if (el) el.style.display = 'flex';
   }
 } catch(e) {}
 
@@ -1534,14 +1595,16 @@ function stopRestTimer() {
   document.getElementById('rest-timer').style.display = 'none';
 }
 
-// ── SHARE ─────────────────────────────────────────────────────────
+// ── SHARE / REFERRAL ──────────────────────────────────────────────
 function sharePTrAIn() {
-  const text = '💪 Just used PTrAIn to get a fully personalised training programme — built by a real PT, powered by AI. Try it free: https://ptrain.onrender.com';
+  const name = document.getElementById('f-name')?.value || '';
+  const from = name ? `${name} thinks` : 'Someone thinks';
+  const text = `${from} you'd love PTrAIn 💪\n\nIt's an AI personal trainer that builds you a complete, personalised workout + nutrition plan in under 60 seconds — based on your goals, equipment, sleep, and stress levels. Built by a real PT.\n\nFree to try, no card needed 👇\nhttps://ptrain.onrender.com`;
   if (navigator.share) {
     navigator.share({ text });
   } else {
     try { navigator.clipboard.writeText(text); } catch(e){}
-    toast('Share link copied!');
+    toast('Referral message copied — paste it anywhere! 🎁');
   }
 }
 
