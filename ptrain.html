@@ -211,6 +211,18 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 
 <div id="toast"></div>
 
+<!-- EMAIL CAPTURE -->
+<div id="email-capture" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9998;align-items:center;justify-content:center;padding:24px">
+  <div style="background:#16161b;border-radius:22px;padding:28px;max-width:340px;width:100%;border:1px solid rgba(245,245,240,0.09)">
+    <div style="font-size:36px;margin-bottom:12px;text-align:center">📬</div>
+    <div style="font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:900;color:#f5f5f0;margin-bottom:8px;text-align:center">Get your plan delivered</div>
+    <div style="color:#8b8b95;font-size:13px;line-height:1.6;margin-bottom:20px;text-align:center">Enter your email to receive your personalised plan and be first to hear about new features.</div>
+    <input class="input" id="f-email" type="email" inputmode="email" placeholder="your@email.com" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')captureEmail()">
+    <button onclick="captureEmail()" style="width:100%;padding:15px;background:#ff5a1f;border:none;color:#fff;font-weight:900;font-size:15px;border-radius:12px;box-shadow:0 6px 24px rgba(255,90,31,0.4)">Generate my plan ⚡</button>
+    <button onclick="captureEmail(true)" style="width:100%;padding:10px;background:none;border:none;color:#5a5a64;font-size:12px;margin-top:8px">Skip for now</button>
+  </div>
+</div>
+
 <!-- SPLASH - shows briefly then auto-dismisses, or tap to skip -->
 <div id="onboarding" style="display:none;position:fixed;inset:0;background:#0a0a0d;z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center" onclick="finishOnboarding()">
   <div style="font-size:56px;margin-bottom:20px">⚡</div>
@@ -281,8 +293,8 @@ input[type=range]{width:100%;accent-color:var(--ember)}
         <div style="font-size:28px">🎁</div>
         <div>
           <div style="color:#4ade80;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Refer a friend</div>
-          <div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">Share PTrAIn, grow together</div>
-          <div style="color:#8b8b95;font-size:12px">Tap to share your personal invite link →</div>
+          <div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">They get their first plan free</div>
+          <div style="color:#8b8b95;font-size:12px">Tap to share your invite →</div>
         </div>
       </div>
     </div>
@@ -296,9 +308,13 @@ input[type=range]{width:100%;accent-color:var(--ember)}
   <div id="tab-generate" class="tab">
     <h2 style="color:var(--text);font-weight:900;font-size:23px;margin-bottom:21px;font-family:'Inter Tight',sans-serif;letter-spacing:-0.02em">Build your plan</h2>
 
-    <div id="limit-warning" style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:13px;padding:15px;margin-bottom:16px;align-items:center;justify-content:space-between">
-      <span style="color:#fca5a5;font-size:14px;font-weight:600">Monthly limit reached</span>
-      <button onclick="showTab('pricing')" style="background:var(--ember);border:none;color:#fff;font-weight:800;font-size:12px;padding:7px 15px;border-radius:9px">Upgrade</button>
+    <div id="limit-warning" style="display:none;background:rgba(255,90,31,0.08);border:1px solid rgba(255,90,31,0.25);border-radius:15px;padding:18px;margin-bottom:16px">
+      <div style="color:#f5f5f0;font-weight:800;font-size:15px;margin-bottom:6px">Your free AI plan is complete.</div>
+      <div style="color:#8b8b95;font-size:13px;line-height:1.55;margin-bottom:14px">Continue with Pro to generate unlimited plans and unlock ongoing coaching, nutrition and progress tracking.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <span style="color:#ff8a4f;font-size:13px;font-weight:700">£6.99/month · Cancel anytime</span>
+        <button onclick="showTab('pricing')" style="background:var(--ember);border:none;color:#fff;font-weight:800;font-size:13px;padding:10px 20px;border-radius:10px;box-shadow:0 4px 16px rgba(255,90,31,0.4)">Upgrade to Pro →</button>
+      </div>
     </div>
 
     <div class="card">
@@ -575,6 +591,7 @@ let state = {
   pbs: {},
   earnedBadges: [],
   weightLog: [],
+  userEmail: '',
   waterToday: 0,
   waterDate: '',
   clients: [
@@ -685,7 +702,20 @@ function renderHome() {
 async function generatePlan() {
   const limit = PLANS[state.userPlan].limit;
   const canGen = limit === -1 || state.plansUsed < limit;
-  if (!canGen) { showTab('pricing'); return; }
+  if (!canGen) {
+    const warning = document.getElementById('limit-warning');
+    if (warning) warning.style.display = 'block';
+    window.scrollTo(0, warning ? warning.offsetTop - 20 : 0);
+    return;
+  }
+
+  // Email capture on first generation only
+  try {
+    if (!localStorage.getItem('ptrain_email') && state.plansUsed === 0) {
+      const el = document.getElementById('email-capture');
+      if (el) { el.style.display = 'flex'; return; }
+    }
+  } catch(e) {}
 
   const btn = document.getElementById('generate-btn');
   const icon = document.getElementById('gen-icon');
@@ -1443,6 +1473,12 @@ renderHome();
 renderPricing();
 renderClients();
 
+// Pre-populate email if already captured
+try {
+  const savedEmail = localStorage.getItem('ptrain_email');
+  if (savedEmail) state.userEmail = savedEmail;
+} catch(e) {}
+
 // ── AI COACH CHAT ─────────────────────────────────────────────────
 let chatHistory = [];
 
@@ -1554,6 +1590,21 @@ function quickWorkout() {
     }
     toast('Quick 20-min workout ready — tap Generate! ⚡');
   }, 200);
+}
+
+// ── EMAIL CAPTURE ─────────────────────────────────────────────────
+function captureEmail(skip) {
+  const emailEl = document.getElementById('f-email');
+  const email = emailEl ? emailEl.value.trim() : '';
+  if (!skip && email && email.includes('@')) {
+    try { localStorage.setItem('ptrain_email', email); } catch(e) {}
+    state.userEmail = email;
+    toast('Got it! Generating your plan now 💪');
+  }
+  const overlay = document.getElementById('email-capture');
+  if (overlay) overlay.style.display = 'none';
+  // Now actually generate
+  generatePlan();
 }
 
 // ── ONBOARDING ────────────────────────────────────────────────────
