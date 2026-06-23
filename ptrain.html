@@ -262,7 +262,7 @@ input[type=range]{width:100%;accent-color:var(--ember)}
     <div class="hero">
       <div style="position:relative">
         <div class="hero-badge">⚡ AI Personal Trainer</div>
-        <h1>Your training plan.<br><span>Forged in seconds.</span></h1>
+        <h1>Your AI training plan.<br><span>Built around you.</span></h1>
         <p>Whatever your goal, age, or starting point — tell PTrAIn your situation and get a complete programme built on real PT expertise. No guesswork, no generic templates.</p>
         <div class="hero-btns">
           <button class="hero-btn-main" onclick="showTab('generate')">⚡ Build My Plan</button>
@@ -290,11 +290,11 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 
     <div style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:17px;padding:18px;margin-top:12px;cursor:pointer" onclick="sharePTrAIn()">
       <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:28px">🎁</div>
+        <div style="font-size:28px">📲</div>
         <div>
-          <div style="color:#4ade80;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Refer a friend</div>
-          <div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">They get their first plan free</div>
-          <div style="color:#8b8b95;font-size:12px">Tap to share your invite →</div>
+          <div style="color:#4ade80;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Share PTrAIn</div>
+          <div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">Training is better with accountability</div>
+          <div style="color:#8b8b95;font-size:12px">Send a friend their first AI plan free →</div>
         </div>
       </div>
     </div>
@@ -388,7 +388,7 @@ input[type=range]{width:100%;accent-color:var(--ember)}
     <div id="generating-state" style="display:none" class="generating-overlay">
       <div class="gen-spinner"></div>
       <div class="gen-status" id="gen-status-text">Building your programme…</div>
-      <div class="gen-sub">This takes 15–30 seconds. Worth the wait.</div>
+      <div class="gen-sub">This takes 30–60 seconds — your plan is worth it.</div>
     </div>
 
     <div id="ai-error" style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:13px;padding:15px;margin-top:15px;color:#fca5a5;font-size:14px;line-height:1.5"></div>
@@ -430,9 +430,9 @@ input[type=range]{width:100%;accent-color:var(--ember)}
       <div id="weekly-weight-change" style="display:none;background:rgba(34,197,94,0.1);border-radius:9px;padding:9px 12px;font-size:12px;color:#4ade80;font-weight:700;text-align:center"></div>
     </div>
     <div class="stat-grid">
-      <div class="stat-card"><div class="stat-val" id="hist-total" style="color:var(--ember)">0</div><div class="stat-lbl">Total</div></div>
+      <div class="stat-card"><div class="stat-val" id="hist-total" style="color:var(--ember)">0</div><div class="stat-lbl">Total sessions</div></div>
       <div class="stat-card"><div class="stat-val" id="hist-week" style="color:var(--success)">0</div><div class="stat-lbl">This week</div></div>
-      <div class="stat-card"><div class="stat-val" id="hist-streak" style="color:var(--purple)">0🔥</div><div class="stat-lbl">Streak</div></div>
+      <div class="stat-card"><div class="stat-val" id="hist-plans" style="color:var(--purple)">0</div><div class="stat-lbl">Plans saved</div></div>
     </div>
     <div id="history-list"><div style="text-align:center;padding:44px 0;color:var(--text-faint)">No sessions logged yet. Complete your first workout 💪</div></div>
 
@@ -475,7 +475,7 @@ input[type=range]{width:100%;accent-color:var(--ember)}
     <div class="pricing-hero">
       <div class="pricing-badge">⚡ Cancel anytime. No commitment.</div>
       <h2>A personal trainer in<br><span>your pocket, for less.</span></h2>
-      <p>Beginner or advanced, 18 or 80 — get a programme built for you.</p>
+      <p>Beginner or advanced, any age, any level — get a programme built for you.</p>
     </div>
 
     <div class="toggle-row">
@@ -561,9 +561,9 @@ const WORKER_URL = '/api/generate';
 // ── PLANS ─────────────────────────────────────────────────────────
 
 const PLANS = {
-  free:  { name:'Starter', emoji:'🏃', price:0,    limit:1,  pitch:'No card needed', features:['1 AI plan/month','Basic exercise library','Text export'], btnClass:'gray', cta:'Start Free' },
-  pro:   { name:'Pro',     emoji:'⚡', price:6.99, limit:10, pitch:'Less than one PT session. Cancel anytime.', popular:true, features:['10 AI plans/month','Full exercise library with GIF demos','PDF export + workout history','Progress tracking','Nutrition guidance per plan'], btnClass:'orange', cta:'Go Pro — £6.99/mo' },
-  coach: { name:'Coach',   emoji:'🏆', price:29,   limit:50, pitch:'For trainers and serious self-coaches', features:['50 AI plans/month','Client management dashboard','Branded PDF exports','Client progress tracking','Priority support'], btnClass:'blue', cta:'Go Coach — £29/mo' },
+  free:  { name:'Starter', emoji:'🏃', price:0,    limit:1,  pitch:'No card needed. No card required.', features:['1 complete AI plan','Exercise GIF demos','Basic exercise library'], btnClass:'gray', cta:'Start Free' },
+  pro:   { name:'Pro',     emoji:'⚡', price:6.99, limit:10, pitch:'Less than one PT session. Cancel anytime.', popular:true, features:['10 AI plans/month','Full nutrition plan with every workout','AI Coach Chat — ask anything, anytime','Streak, PBs & full session history','Unlimited exercise demos + instructions'], btnClass:'orange', cta:'Go Pro — £6.99/mo' },
+  coach: { name:'Coach',   emoji:'🏆', price:29,   limit:50, pitch:'For PTs and serious self-coaches.', features:['50 AI plans/month','Client management dashboard','Client progress tracking','Priority support','Everything in Pro'], btnClass:'blue', cta:'Go Coach — £29/mo' },
   elite: { name:'Elite',   emoji:'👑', price:49,   limit:-1, pitch:'Unlimited. Unmatched.', elite:true, features:['Unlimited AI plans','Everything in Coach','White-label exports','Team accounts (up to 5 PTs)','API access','Dedicated support'], btnClass:'purple', cta:'Go Elite — £49/mo' },
 };
 
@@ -983,7 +983,7 @@ function renderPlan() {
   el.innerHTML = `
     ${p.coachMessage ? `<div style="background:rgba(255,90,31,0.08);border:1px solid rgba(255,90,31,0.2);border-radius:15px;padding:15px 17px;margin-bottom:16px;display:flex;gap:11px;align-items:flex-start">
       <span style="font-size:22px">💬</span>
-      <div style="color:#ff8a4f;font-size:14px;line-height:1.55;font-style:italic">"${p.coachMessage}"</div>
+      <div style="color:#ff8a4f;font-size:14px;line-height:1.55;font-style:italic">${p.coachMessage}</div>
     </div>` : ''}
     <div class="plan-header">
       <div class="plan-header-top">
@@ -1074,7 +1074,7 @@ function renderDayCard(d, i, planId) {
           <tbody>
             ${(d.exercises||[]).map((ex,j)=>`
               <tr class="${j%2?'tr-alt':''}">
-                <td style="padding:6px">${ex._gifUrl?`<img src="${ex._gifUrl}" alt="${ex.name}" onclick="showGifLightbox('${ex._gifUrl.replace(/'/g,"\\'")}','${ex.name.replace(/'/g,"\\'")}',${JSON.stringify(ex._muscles||[])},${JSON.stringify((ex._instructions||[]).slice(0,4))},${ex._videoUrl?`'${ex._videoUrl.replace(/'/g,"\\'")}'`:'null'})" class="ex-thumb">`:`<div class="ex-thumb-placeholder">🏋️</div>`}</td>
+                <td style="padding:6px;text-align:center">${ex._gifUrl?`<button onclick="showGifLightbox('${ex._gifUrl.replace(/'/g,"\\'")}','${ex.name.replace(/'/g,"\\'")}',${JSON.stringify(ex._muscles||[])},${JSON.stringify((ex._instructions||[]).slice(0,4))},${ex._videoUrl?`'${ex._videoUrl.replace(/'/g,"\\'")}'`:'null'})" style="background:rgba(255,90,31,0.13);border:1px solid rgba(255,90,31,0.22);color:#ff8a4f;font-size:11px;font-weight:800;padding:6px 9px;border-radius:8px;white-space:nowrap">Demo ▶</button>`:`<span style="color:#5a5a64;font-size:11px">–</span>`}</td>
                 <td>${ex.name}${ex.notes?`<div class="ex-note">💡 ${ex.notes}</div>`:''}</td>
                 <td class="sets">${ex.sets}</td>
                 <td>${ex.reps}</td>
@@ -1212,6 +1212,8 @@ function renderHistory() {
     try { const [d,m,y]=h.date.split('/'); return (Date.now()-new Date(`${y}-${m}-${d}`)) < 604800000; } catch{return false;}
   }).length;
   document.getElementById('hist-week').textContent = week;
+  const histPlans = document.getElementById('hist-plans');
+  if (histPlans) histPlans.textContent = state.saved.length;
 
   // Real streak calculation
   let streak = 0;
@@ -1518,7 +1520,7 @@ async function sendChat() {
     </div>`;
   messagesEl.scrollTop = messagesEl.scrollHeight;
 
-  const systemPrompt = `You are PTrAIn Coach — a friendly, expert personal trainer and nutritionist built by a certified PT. You give practical, specific, evidence-based advice in a warm but direct tone. Keep responses concise and actionable — 2-4 sentences max unless the question genuinely needs more. Never be vague. Always give a real answer.${state.plan ? ` The user's current plan is: ${state.plan.planName}, goal: ${state.plan.formSnapshot?.goal}, level: ${state.plan.formSnapshot?.level}.` : ''}`;
+  const systemPrompt = `You are PTrAIn Coach — a friendly, expert personal trainer and nutritionist built by a certified PT. You give practical, specific, evidence-based advice in a warm but direct tone. Keep responses concise and actionable — 2-4 sentences max unless the question genuinely needs more. Never be vague. Always give a real answer. Do NOT use markdown formatting, bullet symbols, headers, asterisks, or tables — write in plain conversational text only.${state.plan ? ` The user's current plan is: ${state.plan.planName}, goal: ${state.plan.formSnapshot?.goal}, level: ${state.plan.formSnapshot?.level}.` : ''}`;
 
   try {
     const res = await fetch(WORKER_URL, {
@@ -1535,7 +1537,14 @@ async function sendChat() {
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
 
-    const reply = data.content.map(b => b.text || '').join('').trim();
+    const reply = data.content.map(b => b.text || '').join('').trim()
+      .replace(/#{1,6}\s*/g, '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/\|.+\|/g, '')
+      .replace(/[-–]{3,}/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
     chatHistory.push({ role: 'assistant', content: reply });
 
     // Replace thinking with real reply
@@ -1650,7 +1659,7 @@ function stopRestTimer() {
 function sharePTrAIn() {
   const name = document.getElementById('f-name')?.value || '';
   const from = name ? `${name} thinks` : 'Someone thinks';
-  const text = `${from} you'd love PTrAIn 💪\n\nIt's an AI personal trainer that builds you a complete, personalised workout + nutrition plan in under 60 seconds — based on your goals, equipment, sleep, and stress levels. Built by a real PT.\n\nFree to try, no card needed 👇\nhttps://ptrain.onrender.com`;
+  const text = `${from} you'd love PTrAIn 💪\n\nIt's an AI personal trainer that builds you a complete, personalised workout + nutrition plan in about 60 seconds — based on your goals, equipment, sleep, and stress levels. Built by a real PT.\n\nFree to try, no card needed 👇\nhttps://ptrain.onrender.com`;
   if (navigator.share) {
     navigator.share({ text });
   } else {
