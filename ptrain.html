@@ -211,6 +211,9 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 
 <div id="toast"></div>
 
+<!-- FEEDBACK BUTTON -->
+<div onclick="sendFeedback()" style="position:fixed;bottom:100px;right:16px;background:#ff5a1f;border-radius:50px;padding:10px 16px;font-size:12px;font-weight:800;color:#fff;z-index:997;box-shadow:0 4px 16px rgba(255,90,31,0.4);cursor:pointer">💬 Feedback</div>
+
 <!-- EMAIL CAPTURE -->
 <div id="email-capture" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9998;align-items:center;justify-content:center;padding:24px">
   <div style="background:#16161b;border-radius:22px;padding:28px;max-width:340px;width:100%;border:1px solid rgba(245,245,240,0.09)">
@@ -290,11 +293,11 @@ input[type=range]{width:100%;accent-color:var(--ember)}
 
     <div style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.2);border-radius:17px;padding:18px;margin-top:12px;cursor:pointer" onclick="sharePTrAIn()">
       <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:28px">📲</div>
+        <div style="font-size:28px">🎁</div>
         <div>
-          <div style="color:#4ade80;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Share PTrAIn</div>
-          <div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">Training is better with accountability</div>
-          <div style="color:#8b8b95;font-size:12px">Send a friend their first AI plan free →</div>
+          <div style="color:#4ade80;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Give a friend a free AI fitness plan</div>
+          <div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">Share PTrAIn and unlock an extra plan</div>
+          <div style="color:#ff8a4f;font-size:12px;font-weight:700">🔥 Invite 1 friend = +1 bonus plan</div>
         </div>
       </div>
     </div>
@@ -519,6 +522,29 @@ input[type=range]{width:100%;accent-color:var(--ember)}
       <div class="faq-item"><div class="faq-q">What happens to my plans if I cancel?</div><div class="faq-a">You keep access until the end of your billing period. History stays saved.</div></div>
       <div class="faq-item"><div class="faq-q">Is there a free plan with no card needed?</div><div class="faq-a">Yes — Starter gives you 1 plan a month, forever free, no card required.</div></div>
       <div class="faq-item"><div class="faq-q">I'm a PT — is Coach right for me?</div><div class="faq-a">Absolutely. 50 plans a month, client management, branded exports. Most PTs see ROI in the first week.</div></div>
+    </div>
+    <div style="text-align:center;padding:20px 0;border-top:1px solid rgba(245,245,240,0.06);margin-top:20px">
+      <button onclick="showTab('privacy')" style="background:none;border:none;color:#5a5a64;font-size:12px;text-decoration:underline">Privacy Policy</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ PRIVACY TAB -->
+  <div id="tab-privacy" class="tab">
+    <h2 style="color:var(--text);font-weight:900;font-size:23px;margin-bottom:20px;font-family:'Inter Tight',sans-serif;letter-spacing:-0.02em">Privacy Policy</h2>
+    <div style="color:var(--text-dim);font-size:13px;line-height:1.8">
+      <p style="margin-bottom:12px"><strong style="color:var(--text)">Last updated: June 2026</strong></p>
+      <p style="margin-bottom:16px">PTrAIn ("we", "us") is operated by Tel Kershaw, a UK-based certified personal trainer. This policy explains how we handle your data.</p>
+      <p style="margin-bottom:8px"><strong style="color:var(--text)">What we collect</strong></p>
+      <p style="margin-bottom:16px">When you generate a plan, we collect the information you enter (name, age, fitness details). If you provide your email address, we store it to send you updates about PTrAIn. We do not sell your data to third parties.</p>
+      <p style="margin-bottom:8px"><strong style="color:var(--text)">Email marketing</strong></p>
+      <p style="margin-bottom:16px">If you provide your email, it is stored securely via EmailOctopus. You can unsubscribe at any time by replying "unsubscribe" to any email.</p>
+      <p style="margin-bottom:8px"><strong style="color:var(--text)">Payments</strong></p>
+      <p style="margin-bottom:16px">Payments are processed by Stripe. We do not store your card details. Stripe's privacy policy applies to payment processing.</p>
+      <p style="margin-bottom:8px"><strong style="color:var(--text)">Analytics</strong></p>
+      <p style="margin-bottom:16px">We may use session analytics tools to understand how users interact with PTrAIn. No personally identifiable information is shared with analytics providers.</p>
+      <p style="margin-bottom:8px"><strong style="color:var(--text)">Your rights</strong></p>
+      <p style="margin-bottom:16px">Under UK GDPR, you have the right to access, correct, or delete your data. Contact us at telkershaw@icloud.com to exercise these rights.</p>
+      <p style="color:#5a5a64;font-size:12px">PTrAIn · UK · telkershaw@icloud.com</p>
     </div>
   </div>
 
@@ -989,6 +1015,7 @@ function renderPlan() {
       <div class="plan-header-top">
         <div>
           <div class="plan-goal-badge">${p.formSnapshot?.goal || ''}</div>
+          <div style="color:#8b8b95;font-size:11px;font-weight:700;margin-bottom:8px;letter-spacing:0.02em">Built for: ${p.formSnapshot?.goal || ''} · ${p.formSnapshot?.days || '?'} days/week · ${p.formSnapshot?.equipment || ''} · ${p.formSnapshot?.level || ''}</div>
           <div class="plan-title">${p.planName}</div>
           <div class="plan-overview">${p.overview}</div>
         </div>
@@ -1601,18 +1628,41 @@ function quickWorkout() {
   }, 200);
 }
 
+// ── FEEDBACK ──────────────────────────────────────────────────────
+function sendFeedback() {
+  const msg = prompt('What feedback do you have? (bugs, suggestions, anything)');
+  if (!msg || !msg.trim()) return;
+  // Opens email with feedback pre-filled
+  window.location.href = `mailto:telkershaw@icloud.com?subject=PTrAIn Feedback&body=${encodeURIComponent(msg)}`;
+  toast('Thanks for the feedback! 🙏');
+}
+
 // ── EMAIL CAPTURE ─────────────────────────────────────────────────
-function captureEmail(skip) {
+const EO_API_KEY = 'eo_347e5fd056d045949689c03e7b6ab07ea37140c549188ffb56bded816c850462';
+const EO_LIST_ID = 'badf6dd4-6fa7-11f1-bb46-e1bea4e2db03';
+
+async function captureEmail(skip) {
   const emailEl = document.getElementById('f-email');
   const email = emailEl ? emailEl.value.trim() : '';
   if (!skip && email && email.includes('@')) {
     try { localStorage.setItem('ptrain_email', email); } catch(e) {}
     state.userEmail = email;
+    // Send to EmailOctopus
+    try {
+      await fetch(`https://emailoctopus.com/api/2.0/lists/${EO_LIST_ID}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: EO_API_KEY,
+          email_address: email,
+          status: 'SUBSCRIBED',
+        }),
+      });
+    } catch(e) { console.warn('Email signup failed silently', e); }
     toast('Got it! Generating your plan now 💪');
   }
   const overlay = document.getElementById('email-capture');
   if (overlay) overlay.style.display = 'none';
-  // Now actually generate
   generatePlan();
 }
 
@@ -1659,7 +1709,7 @@ function stopRestTimer() {
 function sharePTrAIn() {
   const name = document.getElementById('f-name')?.value || '';
   const from = name ? `${name} thinks` : 'Someone thinks';
-  const text = `${from} you'd love PTrAIn 💪\n\nIt's an AI personal trainer that builds you a complete, personalised workout + nutrition plan in about 60 seconds — based on your goals, equipment, sleep, and stress levels. Built by a real PT.\n\nFree to try, no card needed 👇\nhttps://ptrain.onrender.com`;
+  const text = `I've been testing this AI fitness app called PTrAIn.\n\nIt builds a personalised workout and nutrition plan in about a minute based on your goals, equipment, sleep and lifestyle.\n\nYou get your first plan free 👇\nhttps://ptrain.onrender.com`;
   if (navigator.share) {
     navigator.share({ text });
   } else {
