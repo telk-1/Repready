@@ -51,6 +51,13 @@ def generate():
     try:
         body = request.get_json()
 
+        if body.get('profile'):
+            messages = [{'role': 'user', 'content': build_prompt(body['profile'])}]
+            system = None
+        else:
+            messages = body.get('messages', [])
+            system = body.get('system')
+
         anthropic_response = requests.post(
             'https://api.anthropic.com/v1/messages',
             headers={
@@ -61,8 +68,8 @@ def generate():
             json={
                 'model': body.get('model', 'claude-sonnet-4-6'),
                 'max_tokens': body.get('max_tokens', 8000),
-                'system': body.get('system'),
-                'messages': [{'role':'user','content': build_prompt(body['profile']) if body.get('profile') else body.get('messages',[{}])[0].get('content','')}] if body.get('profile') else body.get('messages'),
+                'system': system,
+                'messages': messages,
             },
             timeout=120,
         )
