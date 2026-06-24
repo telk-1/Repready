@@ -379,8 +379,9 @@ input[type=range]{width:100%;accent-color:var(--ember)}
     </div>
 
     <div class="card">
-      <div class="card-title">Injuries & notes</div>
-      <textarea class="input" id="f-injuries" rows="3" placeholder="Any injuries, limitations, or special requests…"></textarea>
+      <div class="card-title">Injuries, allergies & notes</div>
+      <textarea class="input" id="f-injuries" rows="2" placeholder="Any injuries or physical limitations…" style="margin-bottom:10px"></textarea>
+      <textarea class="input" id="f-allergies" rows="2" placeholder="Any food allergies or dietary restrictions (e.g. nut allergy, lactose intolerant, gluten free)…"></textarea>
     </div>
 
     <button class="btn-primary" id="generate-btn" onclick="generatePlan()">
@@ -775,7 +776,8 @@ async function generatePlan() {
   const weight = document.getElementById('f-weight').value || '?';
   const height = document.getElementById('f-height').value || '?';
   const dur    = document.getElementById('dur-slider').value;
-  const inj    = document.getElementById('f-injuries').value || 'None';
+  const inj      = document.getElementById('f-injuries').value || 'None';
+  const allergies = document.getElementById('f-allergies').value || 'None';
 
   const sleep  = document.getElementById('f-sleep').value || '?';
   const stress = document.getElementById('f-stress').value || 'Unknown';
@@ -791,6 +793,7 @@ Goal: ${state.form.goal} | Level: ${state.form.level} | Days: ${state.form.days}
 Equipment: ${state.form.equipment} | Focus: ${state.form.muscles.length ? state.form.muscles.join(', ') : 'Full Body'}
 Sleep: ${sleep}hrs/night | Stress: ${stress} | Diet: ${diet} | Today's vibe: ${vibe}
 Injuries/notes: ${inj}
+Food allergies & restrictions: ${allergies}
 
 CRITICAL: Respond ONLY with valid, complete JSON. Keep all text brief to avoid truncation. No markdown, no backticks:
 {
@@ -890,6 +893,7 @@ CRITICAL: Respond ONLY with valid, complete JSON. Keep all text brief to avoid t
     state.plan = parsed;
     state.plansUsed++;
     state.saved.unshift(parsed);
+    saveState();
     renderPlan();
     showTab('plan');
     toast('Plan built! Time to get to work 💪');
@@ -1181,6 +1185,7 @@ function rateSession(dayName, i, planId, rating, overlay) {
 
   // Update streak
   state.currentStreak = (state.currentStreak || 0) + 1;
+  saveState();
 
   // Ask for PB
   const pbOverlay = document.createElement('div');
@@ -1205,6 +1210,7 @@ function savePB(overlay) {
   const wt = document.getElementById('pb-weight').value.trim();
   if (ex && wt) {
     state.pbs[ex] = { weight: wt, date: new Date().toLocaleDateString('en-GB') };
+    saveState();
     toast('New PB saved! 🏆 ' + ex + ' — ' + wt);
   }
   // Find and remove the fixed overlay
@@ -1489,6 +1495,7 @@ async function handleUpgrade(planKey) {
     if (purchasedPlan && PLANS[purchasedPlan]) {
       state.userPlan = purchasedPlan;
       state.plansUsed = 0;
+      saveState();
       renderHome();
       updateNav();
     }
@@ -1496,6 +1503,9 @@ async function handleUpgrade(planKey) {
     window.history.replaceState({}, '', window.location.pathname);
   }
 })();
+
+// Load persisted state first
+loadState();
 
 initPills();
 renderHome();
@@ -1606,6 +1616,7 @@ function logWeight() {
   const w = prompt('Enter your weight (kg):');
   if (!w || isNaN(parseFloat(w))) return;
   state.weightLog.unshift({ weight: parseFloat(w), date: new Date().toLocaleDateString('en-GB') });
+  saveState();
   renderHistory();
   toast('Weight logged: ' + w + 'kg ⚖️');
 }
@@ -1635,6 +1646,50 @@ function sendFeedback() {
   // Opens email with feedback pre-filled
   window.location.href = `mailto:telkershaw@icloud.com?subject=PTrAIn Feedback&body=${encodeURIComponent(msg)}`;
   toast('Thanks for the feedback! 🙏');
+}
+
+// ── STATE PERSISTENCE ─────────────────────────────────────────────
+const STATE_KEY = 'ptrain_state_v1';
+
+function saveState() {
+  try {
+    const toSave = {
+      userPlan: state.userPlan,
+      plansUsed: state.plansUsed,
+      plan: state.plan,
+      history: state.history,
+      saved: state.saved,
+      completedDays: state.completedDays,
+      pbs: state.pbs,
+      earnedBadges: state.earnedBadges,
+      weightLog: state.weightLog,
+      waterToday: state.waterToday,
+      waterDate: state.waterDate,
+      userEmail: state.userEmail,
+      clients: state.clients,
+      form: state.form,
+    };
+    localStorage.setItem(STATE_KEY, JSON.stringify(toSave));
+  } catch(e) {
+    console.warn('Could not save state:', e);
+  }
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STATE_KEY);
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    // Merge saved state into current state
+    Object.assign(state, parsed);
+  } catch(e) {
+    console.warn('Could not load state:', e);
+  }
+}
+
+// Auto-save state whenever key things change
+function saveAndRender() {
+  saveState();
 }
 
 // ── EMAIL CAPTURE ─────────────────────────────────────────────────
@@ -1709,7 +1764,9 @@ function stopRestTimer() {
 function sharePTrAIn() {
   const name = document.getElementById('f-name')?.value || '';
   const from = name ? `${name} thinks` : 'Someone thinks';
-  const text = `I've been testing this AI fitness app called PTrAIn.\n\nIt builds a personalised workout and nutrition plan in about a minute based on your goals, equipment, sleep and lifestyle.\n\nYou get your first plan free 👇\nhttps://ptrain.onrender.com`;
+  const senderName = document.getElementById('f-name')?.value?.trim() || '';
+  const intro = senderName ? `Hey, it's ${senderName}! I've been using this AI fitness app called PTrAIn.` : `I've been testing this AI fitness app called PTrAIn.`;
+  const text = `${intro}\n\nIt builds a personalised workout and nutrition plan in about a minute based on your goals, equipment, sleep and lifestyle.\n\nYou get your first plan free 👇\nhttps://ptrain.onrender.com`;
   if (navigator.share) {
     navigator.share({ text });
   } else {
