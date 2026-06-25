@@ -58,6 +58,14 @@ def generate():
             messages = body.get('messages', [])
             system = body.get('system')
 
+        payload = {
+            'model': body.get('model', 'claude-sonnet-4-6'),
+            'max_tokens': body.get('max_tokens', 8000),
+            'messages': messages,
+        }
+        if system:
+            payload['system'] = system
+
         anthropic_response = requests.post(
             'https://api.anthropic.com/v1/messages',
             headers={
@@ -65,12 +73,7 @@ def generate():
                 'x-api-key': ANTHROPIC_API_KEY,
                 'anthropic-version': '2023-06-01',
             },
-            json={
-                'model': body.get('model', 'claude-sonnet-4-6'),
-                'max_tokens': body.get('max_tokens', 8000),
-                'system': system,
-                'messages': messages,
-            },
+            json=payload,
             timeout=120,
         )
 
