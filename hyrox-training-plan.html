@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyrox Training Plan — Personalised Programme in 60 Seconds | PTrAIn</title>
+<meta name="description" content="Get a personalised Hyrox training plan built around your level and race date. Stations, running, strength — programmed by AI with real PT expertise.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--dark:#0a0a0d;--dark2:#111116;--ember:#ff5a1f;--ember-light:#ff8a4f;--border:rgba(245,245,240,0.07)}
+html{background:#0a0a0d!important}
+body{background:#0a0a0d!important;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;background:rgba(10,10,13,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-logo img{width:30px;height:30px;border-radius:8px}
+.nav-word{font-weight:900;font-size:16px;color:#fff;letter-spacing:-0.03em}
+.nav-word span{color:var(--ember)}
+.nav-cta{background:var(--ember);color:#fff;padding:9px 18px;border-radius:10px;font-weight:800;font-size:13px;text-decoration:none}
+.hero{padding:120px 24px 56px;max-width:680px;margin:0 auto;text-align:center;background:#0a0a0d}
+h1{font-size:clamp(30px,7vw,48px);font-weight:900;line-height:1.08;letter-spacing:-0.04em;color:#ffffff!important;margin-bottom:16px}
+h1 span{color:var(--ember)!important}
+.sub{font-size:16px;color:#d0d0d8;max-width:520px;margin:0 auto 28px}
+.btn{background:var(--ember);color:#fff;padding:15px 30px;border-radius:13px;font-weight:800;font-size:15px;text-decoration:none;display:inline-block;box-shadow:0 8px 32px rgba(255,90,31,0.3)}
+.note{font-size:13px;color:#8b8b95;margin-top:14px}
+.section{max-width:680px;margin:0 auto;padding:36px 24px;background:#0a0a0d}
+h2{font-size:clamp(22px,4vw,30px);font-weight:900;letter-spacing:-0.03em;color:#ffffff!important;margin-bottom:12px}
+h2 span{color:var(--ember)!important}
+.section p{color:#c8c8d0;font-size:15px;margin-bottom:14px}
+.check-list{list-style:none;margin:16px 0}
+.check-list li{color:#c8c8d0;font-size:15px;padding:7px 0;display:flex;gap:10px}
+.check-list li::before{content:'✓';color:var(--ember);font-weight:800}
+.cta-box{background:linear-gradient(135deg,rgba(255,90,31,0.1),rgba(255,90,31,0.03));border:1px solid rgba(255,90,31,0.25);border-radius:18px;padding:32px;text-align:center;margin:32px 0}
+.cta-box h3{font-size:20px;font-weight:900;color:#fff;margin-bottom:8px}
+.cta-box p{color:#c8c8d0;font-size:14px;margin-bottom:20px}
+.faq-item{border-bottom:1px solid var(--border);padding:18px 0}
+.faq-q{font-weight:800;font-size:15px;color:#fff;margin-bottom:6px}
+.faq-a{font-size:14px;color:#c8c8d0}
+footer{border-top:1px solid var(--border);padding:28px 24px;text-align:center;margin-top:40px;background:#0a0a0d}
+footer a{color:#8b8b95;font-size:13px;text-decoration:none;margin:0 10px}
+.foot-copy{font-size:12px;color:#5a5a64;margin-top:12px}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "How many weeks do I need to train for Hyrox?", "acceptedAnswer": {"@type": "Answer", "text": "8-12 weeks of specific preparation is ideal for most people with a training base. PTrAIn builds your programme around however long you have."}}, {"@type": "Question", "name": "Can beginners do Hyrox?", "acceptedAnswer": {"@type": "Answer", "text": "Yes \u2014 Hyrox is designed to be finishable by everyday athletes. PTrAIn scales your programme to your actual level so you arrive prepared, not broken."}}, {"@type": "Question", "name": "Does the plan include running?", "acceptedAnswer": {"@type": "Answer", "text": "Yes \u2014 interval running and compromised running are programmed alongside your strength and station work, exactly as Hyrox demands."}}, {"@type": "Question", "name": "Is it really free to start?", "acceptedAnswer": {"@type": "Answer", "text": "Your first week's full programme and nutrition plan are free, no card needed. Unlimited plans are \u00a36.99/month."}}]}</script>
+</head>
+<body>
+<nav>
+  <a href="https://ptrain.app" class="nav-logo"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAEMklEQVR4nMWXS4gcVRSGv3Pvreqq7nl1d8ZJJoIxrlwFDApZGMwmKKi4cCeMa8nOjasshIAbEfGFawmKoBtBswlGxEXcimAMxgeSaE+SnumZ7p7qrrr3uKiOeUi6OzPBOVBQFMX9//P67znSWKgru2SqitktcAAR2V0CAG7SDzLlQdvN40QCuUIYEbkT5MY3AzgBKxD03siMJaBA0yoVoyigCgH5F9QAIjAI0PZCxwupUVIBv1MCBtgMwtv7tnhmbsC6Fywwb8CIkgXoa1lEmRdWveH8luP0WszPQ8u8UcJOIwCQmEBqlAIlQfh0rULLG47PDnk0KRgo1B0siedwLeel+pCTf6V83ImZm4LExC7wKngFo4bXLld55UqVU6sJxy7N8kk7RVS4MHBkhbDhBYvnvf09np/J6QSwOyUASmSgnQtfdCMWnLLoFC+CivD5esKTv8zx3B9zXC8MVqCncHJpi6aFnPGdNJGACOQBGlHgcOLZCuAVREFD4FCS8/5yn+NzntdbNWKETOHhSsGxNKcbxovNFBEQcqBqlJXmkKBCYsv2dAaemClYaWScaPT5pmf54HrC3KhrHq95VMeHYCKBANQNZCr8lDn2xfBQDO/szzhYCVzOLa3C0C4sB2Lls06F9igVizZg0ZLEXWxiF8QC3/Yj3r2acmHgWHJKuxDO9mI+Wk9IJOCAzQDXCqga4YfM8Ww8RGSykt6VQABSUc5sVviu57jm4UAUWPPCvFXO9w17LFzxhm5Qmk64WsDTsznLkacAukHwCCJ3l8exERCBrzYciVEORopQtpUCDsUCjyWBHKVpAy8sDXmqluMFigAXB7bUgZ2koFClEQlVgW4oRaeVw6KD3wbCG3v7HJ3JGaoQoWyqoApdtZzrOdIJYjSWgAGGCj5AS4UslK7sj+DvHF6u5xytFaz7Mtd9FTywHCkfXov5MTMs2PH3wtguUGCgsFLPeNAFnEDDCRczZbUQjtRychSvgqI4UZYj5exGzKnVClXL9qXYAL0gnGgOeXVPn0NJjlHYawOztgyzoDQsNKxSNzAIhrdaKSt/1hio4Jh8NU+sgSPVHATmTaDlDZXcYwSqVjm9VuFqYWjncCm3fN+z/JpbZq0SM9n7qQgMVOh6eHFhyO+55cuNiECZ13Ndy5lNh1DWQGqUulOCTgcOUyihodT+uvO8ua/H1wc3OJwWbAVhxkDTKQ1XAsdS/nvfJiIAHanZMAgZ8EjFs8cqxQjIj9AmSP72CVjKWc+O3od6E/RW2w74VASGQegHQ6YlRCWUwiI3Er/DtUbGbUYKLNw2ZCoGYT2Ud/69eq2qhBCw9uacNP4uAK57uaWiS0gnUw0S/wGP45g0Tel0OoiUZ008JxKo3PFsZ50KIZCkKYsPLBLCLS79n8upqqJBMfamCxOL8H6aiCD29srZ9eX0H1CXz8KNIY+GAAAAAElFTkSuQmCC" alt="PTrAIn"><div class="nav-word">PTr<span>AI</span>n</div></a>
+  <a href="https://ptrain.app" class="nav-cta">Get your free plan</a>
+</nav>
+<div class="hero">
+  <h1>Your Hyrox training plan.<br><span>Built in 60 seconds.</span></h1>
+  <p class="sub">Sled pushes, wall balls, burpee broad jumps, running between stations — Hyrox demands specific preparation. PTrAIn builds a complete programme around your fitness level, equipment and race date.</p>
+  <a href="https://ptrain.app" class="btn">Build my free plan →</a>
+  <div class="note">First week's programme &amp; nutrition plan free · No card needed · 60 seconds</div>
+</div>
+<div class="section">
+<h2>Training for Hyrox is<br><span>not just going to the gym.</span></h2>
+<p>Hyrox punishes athletes who only lift or only run. Your programme needs compromised running — running on tired legs after strength stations — plus the specific movements:</p>
+<ul class="check-list">
+<li>SkiErg, sled push and pull conditioning</li>
+<li>Burpee broad jumps and wall balls under fatigue</li>
+<li>Farmers carries and sandbag lunges</li>
+<li>Interval running programmed between strength work</li>
+<li>Progressive volume as race day approaches</li>
+</ul>
+<p>PTrAIn programmes all of it based on your current level — whether it's your first Hyrox or you're chasing a PB time.</p>
+</div><div class="section">
+<h2>No sled at your gym?<br><span>No problem.</span></h2>
+<p>Tell PTrAIn what equipment you have and it substitutes intelligently — heavy carries for sleds, rower for SkiErg, whatever gets you the same adaptation with the kit available. Plus a nutrition plan matched to your training volume.</p>
+</div>
+<div class="section">
+  <h2>Common questions</h2>
+  <div class="faq-item"><div class="faq-q">How many weeks do I need to train for Hyrox?</div><div class="faq-a">8-12 weeks of specific preparation is ideal for most people with a training base. PTrAIn builds your programme around however long you have.</div></div><div class="faq-item"><div class="faq-q">Can beginners do Hyrox?</div><div class="faq-a">Yes — Hyrox is designed to be finishable by everyday athletes. PTrAIn scales your programme to your actual level so you arrive prepared, not broken.</div></div><div class="faq-item"><div class="faq-q">Does the plan include running?</div><div class="faq-a">Yes — interval running and compromised running are programmed alongside your strength and station work, exactly as Hyrox demands.</div></div><div class="faq-item"><div class="faq-q">Is it really free to start?</div><div class="faq-a">Your first week's full programme and nutrition plan are free, no card needed. Unlimited plans are £6.99/month.</div></div>
+</div>
+<div class="section">
+  <div class="cta-box">
+    <h3>Your plan is 60 seconds away.</h3>
+    <p>Built by a certified PT with 8 years at Gymbox London. First week completely free.</p>
+    <a href="https://ptrain.app" class="btn">Get started free →</a>
+  </div>
+</div>
+<footer>
+  <a href="https://ptrain.app">App</a>
+  <a href="https://ptrain.app/business">For Business</a>
+  <a href="mailto:tel@ptrain.app">Contact</a>
+  <div class="foot-copy">© 2026 PTrAIn · Built by Tel Kershaw · Certified PT · London</div>
+</footer>
+</body>
+</html>
