@@ -19,6 +19,10 @@ EO_API_KEY = os.environ.get('EO_API_KEY', '')
 EO_LIST_ID = 'badf6dd4-6fa7-11f1-bb46-e1bea4e2db03'
 RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', '')
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+PUSH_SECRET = os.environ.get('PUSH_SECRET', '')
+PUSH_CONTACT_EMAIL = os.environ.get('PUSH_CONTACT_EMAIL', 'tel@ptrain.app')
 
 SUPABASE_HEADERS = {
     'apikey': SUPABASE_KEY,
@@ -70,6 +74,81 @@ _hits_lock = threading.Lock()
 # enforced here (not just in the frontend) so nobody can bypass their plan
 # limit by calling /api/generate directly.
 PLAN_LIMITS = {'free': 1, 'pro': 10, 'coach': 50, 'elite': None}  # None = unlimited
+
+# ─── WHAT WAS ACTUALLY PAID FOR ───────────────────────────────────────────────
+# The tier a customer gets is derived from the Stripe session itself, never from
+# the browser. Price IDs are checked first; the amount paid is the fallback so a
+# duplicated product in Stripe can't silently downgrade a paying customer.
+STRIPE_PRICE_TIERS = {
+    'price_1TlFNjLJBOEFuMCRPPcb2YZh': 'pro',    # PTrAIn Pro  £6.99  (live link)
+    'price_1Tly5zLJBOEFuMCRYAuTclP3': 'pro',    # duplicate Pro product
+    'price_1TjdOhLJBOEFuMCRdfMV2ycl': 'pro',    # third £6.99 price
+    'price_1TjdPsLJBOEFuMCR4DbYjtJE': 'coach',  # PTrAIn Coach £29
+    'price_1TjdU3LJBOEFuMCREb7kVI7v': 'elite',  # PTrAIn Elite £49
+}
+STRIPE_AMOUNT_TIERS = {699: 'pro', 2900: 'coach', 4900: 'elite'}
+
+
+def fetch_stripe_session(session_id):
+    """Retrieve a checkout session with its line items expanded.
+    Returns (session_dict, error_message)."""
+    r = requests.get(
+        f'https://api.stripe.com/v1/checkout/sessions/{session_id}',
+        params={'expand[]': 'line_items.data.price'},
+        auth=(STRIPE_SECRET_KEY, ''),
+        timeout=15
+    )
+    data = r.json()
+    if r.status_code != 200:
+        return None, (data.get('error') or {}).get('message', f'Stripe returned HTTP {r.status_code}')
+    return data, None
+
+
+def tier_from_session(session):
+    """Work out which plan a paid session unlocks. Returns None if unrecognised,
+    so an unknown purchase never silently grants a tier."""
+    items = ((session.get('line_items') or {}).get('data') or [])
+    for item in items:
+        price_id = ((item.get('price') or {}).get('id')) or ''
+        if price_id in STRIPE_PRICE_TIERS:
+            return STRIPE_PRICE_TIERS[price_id]
+    for item in items:
+        amount = item.get('amount_total')
+        if amount in STRIPE_AMOUNT_TIERS:
+            return STRIPE_AMOUNT_TIERS[amount]
+    amount = session.get('amount_total')
+    return STRIPE_AMOUNT_TIERS.get(amount)
+
+
+def apply_plan_upgrade(email, plan_tier):
+    """Write a verified plan change to Supabase without clobbering the rest of
+    the user's saved state. Returns (ok, error_message)."""
+    if not email or plan_tier not in PLAN_LIMITS:
+        return False, 'Invalid email or plan'
+    existing_state = {}
+    try:
+        lookup = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+            headers=SUPABASE_HEADERS, timeout=10
+        )
+        existing_data = lookup.json()
+        if existing_data and len(existing_data) > 0:
+            existing_state = existing_data[0].get('state') or {}
+    except Exception as lookup_err:
+        print(f'[apply_plan_upgrade] state lookup failed for {email}: {lookup_err}')
+    existing_state['userPlan'] = plan_tier
+    existing_state['plansUsed'] = 0
+    existing_state['planPeriodStart'] = datetime.now(timezone.utc).isoformat()
+    r = requests.post(
+        f'{SUPABASE_URL}/rest/v1/ptrain_users',
+        headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'email': email, 'state': existing_state, 'updated_at': 'now()'},
+        timeout=10
+    )
+    if r.status_code >= 300:
+        print(f'[apply_plan_upgrade] Supabase write failed for {email}: {r.status_code} {r.text}')
+        return False, f'Supabase write failed: {r.status_code}'
+    return True, None
 
 def get_user_plan_state(email):
     """Look up a user's current plan tier and plans-used count from Supabase.
@@ -304,6 +383,109 @@ def og_image():
 def icon512():
     return send_from_directory(BASE_DIR, 'icon-512.png')
 
+@app.route('/api/push/key')
+def push_key():
+    """The public half of the VAPID pair is meant to be public — the browser
+    needs it to create a subscription."""
+    return cors(jsonify({'key': VAPID_PUBLIC_KEY}))
+
+
+@app.route('/sw.js')
+def service_worker():
+    """Must be served from the root path — a service worker can only control
+    pages at or below its own scope, so /static/sw.js would control nothing."""
+    resp = send_html('sw.js')
+    resp.headers['Content-Type'] = 'application/javascript'
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+@app.route('/api/push/subscribe', methods=['POST', 'OPTIONS'])
+def push_subscribe():
+    """Store a browser push subscription against an email so we can nudge them
+    later. Safe to call repeatedly — it upserts on the endpoint."""
+    if request.method == 'OPTIONS':
+        return cors(jsonify({'ok': True}))
+    try:
+        body = request.get_json() or {}
+        sub = body.get('subscription') or {}
+        endpoint = str(sub.get('endpoint', '')).strip()
+        email = str(body.get('email', '')).lower().strip()
+        if not endpoint.startswith('http'):
+            return cors(jsonify({'ok': False, 'error': 'Invalid subscription'})), 400
+        r = requests.post(
+            f'{SUPABASE_URL}/rest/v1/ptrain_push',
+            headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+            json={'endpoint': endpoint, 'email': email, 'subscription': sub, 'updated_at': 'now()'},
+            timeout=10
+        )
+        if r.status_code >= 300:
+            print(f'[push_subscribe] Supabase write failed: {r.status_code} {r.text[:200]}')
+            return cors(jsonify({'ok': False, 'error': 'Could not save subscription'})), 502
+        return cors(jsonify({'ok': True}))
+    except Exception as e:
+        return cors(jsonify({'ok': False, 'error': str(e)})), 500
+
+
+@app.route('/api/push/send', methods=['POST'])
+def push_send():
+    """Fire a notification to everyone subscribed. Protected by PUSH_SECRET so
+    only your own scheduler can call it — never expose this to the browser.
+    Point cron-job.org at it with the secret in the JSON body."""
+    try:
+        body = request.get_json() or {}
+        if not PUSH_SECRET or body.get('secret') != PUSH_SECRET:
+            return jsonify({'ok': False, 'error': 'Forbidden'}), 403
+        if not (VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY):
+            return jsonify({'ok': False, 'error': 'VAPID keys not set'}), 500
+        try:
+            from pywebpush import webpush, WebPushException
+        except ImportError:
+            return jsonify({'ok': False, 'error': 'pywebpush not installed — add it to requirements.txt'}), 500
+
+        title = body.get('title') or 'PTrAIn'
+        message = body.get('body') or 'Your next session is waiting.'
+        url = body.get('url') or '/'
+        r = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_push?select=endpoint,subscription',
+            headers=SUPABASE_HEADERS, timeout=15
+        )
+        rows = r.json() if r.status_code == 200 else []
+        sent, dead = 0, []
+        payload = json.dumps({'title': title, 'body': message, 'url': url})
+        for row in rows:
+            sub = row.get('subscription')
+            if not sub:
+                continue
+            try:
+                webpush(
+                    subscription_info=sub,
+                    data=payload,
+                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims={'sub': f'mailto:{PUSH_CONTACT_EMAIL}'}
+                )
+                sent += 1
+            except WebPushException as e:
+                # 404/410 means the browser dropped it — stop trying that one.
+                status = getattr(getattr(e, 'response', None), 'status_code', None)
+                if status in (404, 410):
+                    dead.append(row.get('endpoint'))
+            except Exception as e:
+                print(f'[push_send] failed for one subscriber: {e}')
+        for endpoint in dead:
+            try:
+                requests.delete(
+                    f'{SUPABASE_URL}/rest/v1/ptrain_push?endpoint=eq.{endpoint}',
+                    headers=SUPABASE_HEADERS, timeout=10
+                )
+            except Exception:
+                pass
+        return jsonify({'ok': True, 'sent': sent, 'removed': len(dead)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 @app.route('/ping')
 def ping():
     return jsonify({'status': 'ok'}), 200
@@ -334,21 +516,24 @@ def stripe_verify():
         session_id = str(body.get('session_id', '')).strip()
         if not session_id.startswith('cs_'):
             return cors(jsonify({'ok': False, 'paid': False, 'error': 'Invalid session id'})), 400
-        r = requests.get(
-            f'https://api.stripe.com/v1/checkout/sessions/{session_id}',
-            auth=(STRIPE_SECRET_KEY, ''),
-            timeout=15
-        )
-        data = r.json()
+        data, stripe_err = fetch_stripe_session(session_id)
         # Stripe returned an error (wrong key, key/session mode mismatch, expired
         # session, etc.) — surface it instead of silently reporting paid:false.
-        if r.status_code != 200:
-            stripe_err = (data.get('error') or {}).get('message', f'Stripe returned HTTP {r.status_code}')
+        if stripe_err:
             print(f'[stripe_verify] Stripe API error for session {session_id}: {stripe_err}')
             return cors(jsonify({'ok': False, 'paid': False, 'error': stripe_err})), 502
         paid = data.get('payment_status') == 'paid'
         email = (data.get('customer_details') or {}).get('email', '')
-        return cors(jsonify({'ok': True, 'paid': paid, 'email': email}))
+        # The tier comes from what Stripe says was bought — never from the
+        # browser. A ?plan= in the URL is now ignored entirely.
+        tier = tier_from_session(data) if paid else None
+        if paid and tier and email:
+            ok, upgrade_err = apply_plan_upgrade(email, tier)
+            if not ok:
+                print(f'[stripe_verify] upgrade failed for {email}: {upgrade_err}')
+        if paid and not tier:
+            print(f'[stripe_verify] paid session {session_id} did not match any known price')
+        return cors(jsonify({'ok': True, 'paid': paid, 'email': email, 'plan': tier}))
     except Exception as e:
         return cors(jsonify({'ok': False, 'paid': False, 'error': str(e)})), 500
 
@@ -477,54 +662,59 @@ def save_state():
             return cors(jsonify({'error': 'No email'})), 400
         state = body.get('state', {})
         plan = body.get('plan')
+        # The column is called `tier`, not `plan`. Posting `plan` made Postgres
+        # reject the whole row, so every full state save failed silently while
+        # this endpoint still answered ok:True — which is why no history, PBs or
+        # weight logs were ever reaching the server.
         r = requests.post(
             f'{SUPABASE_URL}/rest/v1/ptrain_users',
             headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
-            json={'email': email, 'state': state, 'plan': plan, 'updated_at': 'now()'},
+            json={'email': email, 'state': state, 'tier': plan, 'updated_at': 'now()'},
             timeout=10
         )
+        if r.status_code >= 300:
+            print(f'[save_state] Supabase write failed for {email}: {r.status_code} {r.text[:300]}')
+            return cors(jsonify({'ok': False, 'error': f'Supabase write failed: {r.status_code}'})), 502
         return cors(jsonify({'ok': True, 'status': r.status_code}))
     except Exception as e:
         return cors(jsonify({'error': str(e)})), 500
 
 @app.route('/api/state/upgrade', methods=['POST', 'OPTIONS'])
 def upgrade_plan():
+    """Apply a plan upgrade. Requires a paid Stripe session — the tier is read
+    from that session, so a client can no longer name its own plan. Previously
+    this endpoint trusted whatever the browser posted, which meant anyone could
+    grant themselves Elite with a single request."""
     if request.method == 'OPTIONS':
         return cors(jsonify({'ok': True}))
     try:
-        body = request.get_json()
-        email = body.get('email', '').lower().strip()
-        plan_tier = body.get('plan', 'pro')
+        if not STRIPE_SECRET_KEY:
+            return cors(jsonify({'ok': False, 'error': 'STRIPE_SECRET_KEY not set'})), 500
+        body = request.get_json() or {}
+        email = str(body.get('email', '')).lower().strip()
+        session_id = str(body.get('session_id', '')).strip()
         if not email:
             return cors(jsonify({'error': 'No email'})), 400
-        # Fetch the user's existing state first — writing a bare {userPlan,
-        # plansUsed} dict here would silently wipe their history, PBs, and
-        # referral data, since Supabase upsert replaces the whole state
-        # column rather than deep-merging the JSON.
-        existing_state = {}
-        try:
-            lookup = requests.get(
-                f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
-                headers=SUPABASE_HEADERS, timeout=10
-            )
-            existing_data = lookup.json()
-            if existing_data and len(existing_data) > 0:
-                existing_state = existing_data[0].get('state') or {}
-        except Exception as lookup_err:
-            print(f'[upgrade_plan] state lookup failed for {email}: {lookup_err}')
-        existing_state['userPlan'] = plan_tier
-        existing_state['plansUsed'] = 0
-        existing_state['planPeriodStart'] = datetime.now(timezone.utc).isoformat()
-        r = requests.post(
-            f'{SUPABASE_URL}/rest/v1/ptrain_users',
-            headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
-            json={'email': email, 'state': existing_state, 'updated_at': 'now()'},
-            timeout=10
-        )
-        if r.status_code >= 300:
-            print(f'[upgrade_plan] Supabase write failed for {email}: {r.status_code} {r.text}')
-            return cors(jsonify({'ok': False, 'error': f'Supabase write failed: {r.status_code}'})), 502
-        return cors(jsonify({'ok': True}))
+        if not session_id.startswith('cs_'):
+            return cors(jsonify({'ok': False, 'error': 'A valid Stripe session is required'})), 400
+        session, stripe_err = fetch_stripe_session(session_id)
+        if stripe_err:
+            return cors(jsonify({'ok': False, 'error': stripe_err})), 502
+        if session.get('payment_status') != 'paid':
+            return cors(jsonify({'ok': False, 'error': 'Session is not paid'})), 402
+        tier = tier_from_session(session)
+        if not tier:
+            print(f'[upgrade_plan] unrecognised purchase on session {session_id}')
+            return cors(jsonify({'ok': False, 'error': 'Purchase not recognised'})), 400
+        # Make sure the session belongs to this person before granting anything.
+        session_email = ((session.get('customer_details') or {}).get('email') or '').lower().strip()
+        if session_email and session_email != email:
+            print(f'[upgrade_plan] email mismatch: session {session_email} vs requested {email}')
+            return cors(jsonify({'ok': False, 'error': 'Session does not match this account'})), 403
+        ok, err = apply_plan_upgrade(email, tier)
+        if not ok:
+            return cors(jsonify({'ok': False, 'error': err})), 502
+        return cors(jsonify({'ok': True, 'plan': tier}))
     except Exception as e:
         return cors(jsonify({'error': str(e)})), 500
 
