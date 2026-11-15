@@ -443,22 +443,55 @@ async function syncToServer() {
      src: (function(){ try { return localStorage.getItem('ptrain_src') || ''; } catch(e){ return ''; } })(),
      srcAt: (function(){ try { return localStorage.getItem('ptrain_src_at') || ''; } catch(e){ return ''; } })(),
    };
-   await fetch('/api/state/save', {
+   const saveRes = await fetch('/api/state/save', {
      method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
+     headers: authHeaders(),
      body: JSON.stringify({ email, state: stateToStore, plan: planToStore })
    });
+   if (saveRes.status === 401) handleReauth(await saveRes.json().catch(() => null));
  } catch(e) {}
+}
+
+
+// ── SIGN-IN TOKEN ─────────────────────────────────────────────────────────
+// Identity for anything that touches saved data comes from this token, which
+// arrives on a magic link. The server ignores any email in the request body,
+// so holding someone's address is no longer enough to read their programme.
+function authToken() { try { return localStorage.getItem('ptrain_token') || ''; } catch(e) { return ''; } }
+function setAuthToken(t) { try { t ? localStorage.setItem('ptrain_token', t) : localStorage.removeItem('ptrain_token'); } catch(e) {} }
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  const t = authToken();
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+// A 401 means the link expired or they are on a new device. Clear the dead
+// token and ask for a fresh link rather than failing silently.
+function handleReauth(data) {
+  if (!data || !data.reauth) return false;
+  setAuthToken('');
+  toast('Tap the link in your email to get back in, or enter your email again.', 'error');
+  return true;
+}
+async function requestSignInLink(email) {
+  try {
+    const r = await fetch('/api/auth/request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    return (await r.json()).ok === true;
+  } catch(e) { return false; }
 }
 
 async function loadFromServer(email) {
  try {
    const res = await fetch('/api/state/load', {
      method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
+     headers: authHeaders(),
      body: JSON.stringify({ email })
    });
    const data = await res.json();
+   if (res.status === 401) { handleReauth(data); return false; }
    if (data.found && data.state) {
      Object.assign(state, data.state);
      normaliseForm();
@@ -1885,6 +1918,43 @@ function getReferralLink() {
  return 'https://ptrain.app';
 }
 
+// Read the sign-in token off the magic link. This MUST run before anything
+// that calls history.replaceState, because the query string is stripped there
+// and a later reader would find nothing — which is exactly what silently
+// disabled the ?v= sanitiser for weeks.
+// Grab the sign-in token the moment this script runs, before anything else
+// touches the query string. Everything downstream uses this captured value,
+// so the order in which the URL gets cleaned no longer matters.
+const MAGIC_TOKEN = (function(){
+  try { return new URLSearchParams(window.location.search).get('t'); } catch(e) { return null; }
+})();
+
+async function consumeMagicLink(t) {
+ if (!t) return;
+ try {
+   const r = await fetch('/api/auth/verify', {
+     method: 'POST', headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ token: t })
+   });
+   const data = await r.json();
+   if (data.ok && data.email) {
+     setAuthToken(t);
+     state.userEmail = data.email;
+     try { localStorage.setItem('ptrain_email', data.email); } catch(e) {}
+     saveState();
+     await loadFromServer(data.email);
+     renderHome();
+     toast("You're signed in.", 'success');
+   } else {
+     toast('That link has expired. Enter your email for a fresh one.', 'error');
+   }
+ } catch(e) {}
+ finally {
+   // never leave a usable token sitting in the address bar or in history
+   try { window.history.replaceState({}, '', window.location.pathname); } catch(e) {}
+ }
+}
+
 async function checkIncomingReferral() {
  try {
    const params = new URLSearchParams(window.location.search);
@@ -1932,6 +2002,9 @@ async function submitPendingReferralIfAny() {
  } catch(e) {}
 }
 checkIncomingReferral();
+// Runs only when a sign-in link was followed. The token was captured
+// synchronously above, so it survives the URL being cleaned.
+if (MAGIC_TOKEN) consumeMagicLink(MAGIC_TOKEN);
 refreshReferralInfo();
 
 async function captureEmail(skip) {
@@ -1952,6 +2025,10 @@ async function captureEmail(skip) {
      });
      track('EmailCaptured');
    } catch(e) {}
+   // Email them a sign-in link. This is what lets their programme follow them
+   // to another phone — and it is why typing someone else's address no longer
+   // hands you their data: without the link you never get a token.
+   if (!authToken()) { try { await requestSignInLink(email); } catch(e) {} }
    // Load any existing data from server for returning users
    const found = await loadFromServer(email);
    if (found) {

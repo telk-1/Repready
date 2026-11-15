@@ -4,6 +4,7 @@ import os
 import json
 import hmac
 import hashlib
+import secrets
 import threading
 import time
 from collections import defaultdict, deque
@@ -112,6 +113,132 @@ STATE_EMAILS_PER_IP = 8
 STATE_EMAIL_WINDOW = 3600
 _state_probe = defaultdict(deque)      # ip -> deque of (timestamp, email)
 _state_probe_lock = threading.Lock()
+
+
+# ── CUSTOMER AUTHENTICATION ───────────────────────────────────────────────
+# The state endpoints used to accept an email address as proof of identity, so
+# anyone holding a customer's address could read their injuries and training
+# history or overwrite it. Identity now comes from a token in the
+# Authorization header, and the email in a request body is ignored entirely.
+#
+# Enforcement is tied to whether we can actually send email, because the token
+# is delivered by magic link. If PRIVATE_EMAIL_PASSWORD is unset the app cannot
+# deliver a link, so requiring one would lock every customer out of their own
+# data. Setting that variable turns on email AND enforcement together, with no
+# second deploy. Tokens are issued and honoured either way; only the
+# requirement is conditional.
+TOKEN_TTL_DAYS = 90
+
+_auth_req = defaultdict(deque)          # ip -> request timestamps
+_auth_req_email = defaultdict(deque)    # email -> request timestamps
+_auth_lock = threading.Lock()
+AUTH_REQ_PER_IP = 10                    # magic links per IP per hour
+AUTH_REQ_PER_EMAIL = 5                  # per address per hour
+
+
+def auth_request_limited(ip, email):
+    """Throttle magic-link requests, per IP and per address."""
+    now = time.time()
+    with _auth_lock:
+        for store, key, cap in ((_auth_req, ip, AUTH_REQ_PER_IP),
+                                (_auth_req_email, email, AUTH_REQ_PER_EMAIL)):
+            q = store[key]
+            while q and now - q[0] > 3600:
+                q.popleft()
+            if len(q) >= cap:
+                return True
+        _auth_req[ip].append(now)
+        _auth_req_email[email].append(now)
+        return False
+
+
+def issue_token(email):
+    """Create a login token for an address. Returns the token, or None."""
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(days=TOKEN_TTL_DAYS)
+    try:
+        r = requests.post(
+            f'{SUPABASE_URL}/rest/v1/ptrain_tokens',
+            headers={**SUPABASE_HEADERS, 'Prefer': 'return=minimal'},
+            json={'token': token, 'email': email,
+                  'expires_at': expires.isoformat()},
+            timeout=10)
+        if r.status_code >= 300:
+            print(f'[auth] could not store token: {r.status_code}')
+            return None
+        return token
+    except Exception as e:
+        print(f'[auth] token store failed: {e}')
+        return None
+
+
+def email_for_token(token):
+    """Resolve a token to its owner. None if unknown, revoked or expired.
+
+    This is the only thing that establishes who a request is for. It never
+    consults the request body.
+    """
+    if not token or len(token) > 128:
+        return None
+    try:
+        r = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_tokens'
+            f'?token=eq.{token}&select=email,expires_at,revoked',
+            headers=SUPABASE_HEADERS, timeout=10)
+        if r.status_code >= 300:
+            return None
+        rows = r.json()
+        if not rows:
+            return None
+        row = rows[0]
+        if row.get('revoked'):
+            return None
+        try:
+            if datetime.fromisoformat(
+                    str(row['expires_at']).replace('Z', '+00:00')) < datetime.now(timezone.utc):
+                return None
+        except Exception:
+            return None
+        # best-effort touch; never block the request on it
+        try:
+            requests.patch(
+                f'{SUPABASE_URL}/rest/v1/ptrain_tokens?token=eq.{token}',
+                headers={**SUPABASE_HEADERS, 'Prefer': 'return=minimal'},
+                json={'last_used': datetime.now(timezone.utc).isoformat()},
+                timeout=5)
+        except Exception:
+            pass
+        return (row.get('email') or '').lower().strip()
+    except Exception as e:
+        print(f'[auth] token lookup failed: {e}')
+        return None
+
+
+def bearer_token():
+    """The token on this request, from the Authorization header."""
+    h = request.headers.get('Authorization', '')
+    if h.startswith('Bearer '):
+        return h[7:].strip()
+    return ''
+
+
+def authorised_email(body_email):
+    """Who this request is allowed to act as. Returns (email, error_response).
+
+    With a valid token the token's owner wins and `body_email` is ignored, so
+    asking for someone else's address achieves nothing. With enforcement off
+    (no mail configured) the body address is accepted, which is the behaviour
+    that existed before and is no worse than it was.
+    """
+    tok = bearer_token()
+    if tok:
+        owner = email_for_token(tok)
+        if owner:
+            return owner, None
+        return None, (cors(jsonify({'error': 'Session expired', 'reauth': True})), 401)
+    if AUTH_ENFORCED:
+        return None, (cors(jsonify({'error': 'Sign in required', 'reauth': True})), 401)
+    return body_email, None
 
 
 def state_probe_blocked(ip, email):
@@ -770,6 +897,10 @@ SMTP_HOST = os.environ.get('SMTP_HOST', 'mail.privateemail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '465'))
 SMTP_USER = os.environ.get('SMTP_USER', 'tel@ptrain.app')
 SMTP_PASS = os.environ.get('PRIVATE_EMAIL_PASSWORD', '')
+
+# Requiring a sign-in token is only safe once we can deliver one. Setting the
+# mailbox password switches on email AND authentication together.
+AUTH_ENFORCED = bool(SMTP_PASS)
 
 def _first_name(state_blob):
     raw = ((state_blob.get('plan') or {}).get('formSnapshot') or {}).get('name') or ''
@@ -1683,6 +1814,62 @@ def keep_alive():
 # The frontend then calls this endpoint, which confirms with Stripe that the
 # session was genuinely paid before the app unlocks the tier.
 
+@app.route('/api/auth/request', methods=['POST', 'OPTIONS'])
+def auth_request():
+    """Email a sign-in link.
+
+    Always answers the same way whether or not the address is known, so this
+    cannot be used to find out who is a customer.
+    """
+    if request.method == 'OPTIONS':
+        return cors(jsonify({'ok': True}))
+    if not origin_ok():
+        return cors(jsonify({'error': 'Forbidden'})), 403
+    try:
+        email = str((request.get_json() or {}).get('email', '')).lower().strip()
+        if not email or '@' not in email or len(email) > 200:
+            return cors(jsonify({'error': 'Enter a valid email'})), 400
+        if auth_request_limited(client_ip(), email):
+            # same shape as success: no signal either way
+            return cors(jsonify({'ok': True, 'sent': True}))
+        token = issue_token(email)
+        if token and SMTP_PASS:
+            link = f'https://ptrain.app/?t={token}'
+            try:
+                _send_email(
+                    email,
+                    'Your PTrain sign-in link',
+                    f"Here's your link back into PTrain:\n\n{link}\n\n"
+                    f"It keeps you signed in on this device for {TOKEN_TTL_DAYS} days. "
+                    f"If you didn't ask for it, ignore this email and nothing happens.\n\n"
+                    f"Tel")
+                print(f'[auth] sign-in link sent to {email}')
+            except Exception as e:
+                print(f'[auth] could not send link to {email}: {e}')
+        elif token:
+            print(f'[auth] token issued for {email} but no mailer configured')
+        return cors(jsonify({'ok': True, 'sent': True}))
+    except Exception as e:
+        return cors(jsonify({'error': str(e)})), 500
+
+
+@app.route('/api/auth/verify', methods=['POST', 'OPTIONS'])
+def auth_verify():
+    """Exchange a magic-link token for the address it belongs to."""
+    if request.method == 'OPTIONS':
+        return cors(jsonify({'ok': True}))
+    if not origin_ok():
+        return cors(jsonify({'error': 'Forbidden'})), 403
+    try:
+        token = str((request.get_json() or {}).get('token', '')).strip()
+        owner = email_for_token(token)
+        if not owner:
+            return cors(jsonify({'ok': False, 'error': 'That link has expired'})), 401
+        return cors(jsonify({'ok': True, 'email': owner}))
+    except Exception as e:
+        return cors(jsonify({'error': str(e)})), 500
+
+
 @app.route('/api/stripe/portal', methods=['POST', 'OPTIONS'])
 def stripe_portal():
     """Open Stripe's billing portal so a subscriber can cancel or update their
@@ -1899,7 +2086,10 @@ def load_state():
     try:
         if not origin_ok():
             return cors(jsonify({'error': 'Forbidden'})), 403
-        email = request.get_json().get('email', '').lower().strip()
+        body_email = request.get_json().get('email', '').lower().strip()
+        email, deny = authorised_email(body_email)
+        if deny:
+            return deny
         if not email:
             return cors(jsonify({'error': 'No email'})), 400
         if state_probe_blocked(client_ip(), email):
@@ -2017,7 +2207,10 @@ def save_state():
         if not origin_ok():
             return cors(jsonify({'error': 'Forbidden'})), 403
         body = request.get_json()
-        email = body.get('email', '').lower().strip()
+        body_email = body.get('email', '').lower().strip()
+        email, deny = authorised_email(body_email)
+        if deny:
+            return deny
         if not email:
             return cors(jsonify({'error': 'No email'})), 400
         if state_probe_blocked(client_ip(), email):
