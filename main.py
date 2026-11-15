@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, send_from_directory, redirect
 import requests
 import os
 import json
+import hmac
+import hashlib
 import threading
 import time
 from collections import defaultdict, deque
@@ -9,16 +11,24 @@ from datetime import datetime, timezone, timedelta
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
+# static_folder=None: every file that must be public has its own explicit
+# route below. Serving BASE_DIR exposed main.py, requirements.txt and .git
+app = Flask(__name__, static_folder=None)
 
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 RENDER_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://ptrain.onrender.com')
 SUPABASE_URL = 'https://ysztaecwyjuqchmcgxjr.supabase.co'
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'sb_publishable_2Y6Azzpv7SNDVRMng3QU7Q_bhiWuV2i')
+# No hardcoded fallback. The old one was a publishable key, which RLS denies on
+# every table, so a missing env var used to mean every read and write failed
+# quietly instead of failing loudly. It must come from the environment.
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 EO_API_KEY = os.environ.get('EO_API_KEY', '')
 EO_LIST_ID = 'badf6dd4-6fa7-11f1-bb46-e1bea4e2db03'
 RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', '')
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+# Signing secret for /api/stripe/webhook (the "whsec_..." value Stripe shows
+# when the endpoint is created). Without it the webhook accepts nothing.
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
 VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
 PUSH_SECRET = os.environ.get('PUSH_SECRET', '')
@@ -48,6 +58,23 @@ def cors(response):
     response.headers['Vary'] = 'Origin'
     return response
 
+def admin_authorised():
+    """Gate for the private dashboards and the Stripe setup route.
+
+    Fails CLOSED. If PUSH_SECRET is not configured, nothing is authorised —
+    the previous version compared against the literal string '__unset__' when
+    the variable was missing, and because this repository is public that
+    fallback was effectively a published password. Compared in constant time
+    so the secret can't be recovered a character at a time.
+    """
+    if not PUSH_SECRET:
+        return False
+    supplied = request.args.get('key', '')
+    if not supplied:
+        return False
+    return hmac.compare_digest(supplied, PUSH_SECRET)
+
+
 def origin_ok():
     """Block only requests that clearly come from a foreign website.
     Missing Origin headers and same-host requests are always allowed so real
@@ -69,6 +96,40 @@ RATE_WINDOW = 3600     # per hour
 _hits = defaultdict(deque)
 _hits_lock = threading.Lock()
 
+# ── State-endpoint abuse control ──────────────────────────────────────────
+# /api/state/load and /api/state/save are authorised by an email address and
+# nothing else, so anyone holding a customer's address can read or overwrite
+# their saved state. Proper authentication is the real fix and is NOT what
+# this is; it limits the blast radius until that exists.
+#
+# A plain per-request rate limit is the wrong tool: phones share carrier NAT
+# addresses, so a request cap would throttle real users long before it
+# inconvenienced an attacker. The signal that actually separates them is how
+# many DIFFERENT people one address asks about — a real person uses one or
+# two, someone working through a list uses many. So the cap is on distinct
+# emails per IP, and ordinary use is unaffected no matter how often it syncs.
+STATE_EMAILS_PER_IP = 8
+STATE_EMAIL_WINDOW = 3600
+_state_probe = defaultdict(deque)      # ip -> deque of (timestamp, email)
+_state_probe_lock = threading.Lock()
+
+
+def state_probe_blocked(ip, email):
+    """True when this IP has asked about too many different people lately."""
+    now = time.time()
+    with _state_probe_lock:
+        q = _state_probe[ip]
+        while q and now - q[0][0] > STATE_EMAIL_WINDOW:
+            q.popleft()
+        seen = {e for _, e in q}
+        if email not in seen and len(seen) >= STATE_EMAILS_PER_IP:
+            return True
+        q.append((now, email))
+        if len(_state_probe) > 5000:       # keep the map from growing forever
+            for k in [k for k, v in list(_state_probe.items()) if not v][:1000]:
+                _state_probe.pop(k, None)
+        return False
+
 # Server-side plan quotas — must match the limits shown in index.html's PLANS
 # object exactly, since that's the promise being made to the user. This is
 # enforced here (not just in the frontend) so nobody can bypass their plan
@@ -80,21 +141,37 @@ PLAN_LIMITS = {'free': 1, 'pro': 10, 'coach': 50, 'elite': None}  # None = unlim
 # the browser. Price IDs are checked first; the amount paid is the fallback so a
 # duplicated product in Stripe can't silently downgrade a paying customer.
 STRIPE_PRICE_TIERS = {
-    'price_1TlFNjLJBOEFuMCRPPcb2YZh': 'pro',    # PTrAIn Pro  £6.99  (live link)
-    'price_1Tly5zLJBOEFuMCRYAuTclP3': 'pro',    # duplicate Pro product
-    'price_1TjdOhLJBOEFuMCRdfMV2ycl': 'pro',    # third £6.99 price
-    'price_1TjdPsLJBOEFuMCR4DbYjtJE': 'coach',  # PTrAIn Coach £29
-    'price_1TjdU3LJBOEFuMCREb7kVI7v': 'elite',  # PTrAIn Elite £49
-    # Annual plans (20% off) — added 9 Aug 2026
-    'price_1U3FOgLJBOEFuMCRRQ33rMQG': 'pro',    # Pro Annual   £67.10/yr
+    # --- CURRENTLY ON SALE (27 Oct 2026) ---
+    'price_1UFCZ4LJBOEFuMCRBFpWcdof': 'pro',    # PTrain Pro £9.99/mo
+    'price_1UE3sfLJBOEFuMCRXjaEMWcx': 'pro',    # PTrain Pro £9.99/mo (live link)
+    'price_1UFCZ4LJBOEFuMCRDbmEcOaX': 'pro',    # Group Coaching £29 — full app access
+    'price_1UE3sgLJBOEFuMCRHsPp5NIN': 'pro',    # Group Coaching £29 (live link)
+    'price_1UFCZ5LJBOEFuMCRVHoVMKWf': 'elite',  # Coaching with Tel £149 — no caps
+    'price_1UE3shLJBOEFuMCRjXa4aYjc': 'elite',  # Coaching with Tel £149 (live link)
+    'price_1U3FPeLJBOEFuMCRoPCB5AGL': 'elite',  # Founding Member £79 one-off, for life
+    # One-off service, NOT a subscription tier — must not change what they have
+    'price_1UFCZ5LJBOEFuMCRvzAJHKos': 'service',  # Plan Review £19
+    'price_1UE3siLJBOEFuMCRkTLBNk6Y': 'service',  # Plan Review £19 (live link)
+    # --- RETIRED, kept so existing customers still resolve correctly ---
+    'price_1TlFNjLJBOEFuMCRPPcb2YZh': 'pro',    # Pro £6.99
+    'price_1Tly5zLJBOEFuMCRYAuTclP3': 'pro',    # Pro £6.99 duplicate
+    'price_1TjdOhLJBOEFuMCRdfMV2ycl': 'pro',    # Pro £6.99 third
+    'price_1TjdPsLJBOEFuMCR4DbYjtJE': 'coach',  # Coach £29
+    'price_1TjdU3LJBOEFuMCREb7kVI7v': 'elite',  # Elite £49
+    'price_1U3FOgLJBOEFuMCRRQ33rMQG': 'pro',    # Pro Annual £67.10/yr
     'price_1U3FOmLJBOEFuMCRtPWlKmAF': 'coach',  # Coach Annual £278.40/yr
     'price_1U3FOrLJBOEFuMCRutaHZqcb': 'elite',  # Elite Annual £470.40/yr
-    # Founding Member — one-off £79, grants elite for life
-    'price_1U3FPeLJBOEFuMCRoPCB5AGL': 'elite',
 }
-STRIPE_AMOUNT_TIERS = {699: 'pro', 2900: 'coach', 4900: 'elite',
-                       6710: 'pro', 27840: 'coach', 47040: 'elite', 7900: 'elite'}
-
+# Fallback when a price ID isn't recognised. 999 and 14900 were MISSING, which
+# meant a £9.99 Pro or £149 coaching payment resolved to nothing and the customer
+# was told "Purchase not recognised" after their card had been charged.
+STRIPE_AMOUNT_TIERS = {999: 'pro', 2900: 'pro', 14900: 'elite', 7900: 'elite',
+                       9900: 'elite',  # legacy £99 coaching — price still live on the
+                                       # account; without this a legacy customer paying
+                                       # £99 is told 'Purchase not recognised'.
+                       1900: 'service',
+                       699: 'pro', 4900: 'elite',
+                       6710: 'pro', 27840: 'coach', 47040: 'elite'}
 
 def fetch_stripe_session(session_id):
     """Retrieve a checkout session with its line items expanded.
@@ -109,7 +186,6 @@ def fetch_stripe_session(session_id):
     if r.status_code != 200:
         return None, (data.get('error') or {}).get('message', f'Stripe returned HTTP {r.status_code}')
     return data, None
-
 
 def tier_from_session(session):
     """Work out which plan a paid session unlocks. Returns None if unrecognised,
@@ -126,26 +202,44 @@ def tier_from_session(session):
     amount = session.get('amount_total')
     return STRIPE_AMOUNT_TIERS.get(amount)
 
+def _fetch_existing_state(email):
+    """Read a user's saved state. Returns (state_dict, error_message).
+
+    The error is returned rather than swallowed: a caller about to overwrite the
+    row must know the difference between "this user has no state" and "I could
+    not read their state", because writing on the second one destroys data.
+    """
+    try:
+        lookup = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+            headers=SUPABASE_HEADERS, timeout=10
+        )
+        if lookup.status_code >= 300:
+            return None, f'Supabase read failed: {lookup.status_code}'
+        rows = lookup.json()
+        if rows and len(rows) > 0:
+            return (rows[0].get('state') or {}), None
+        return {}, None
+    except Exception as err:
+        return None, f'Supabase read error: {err}'
+
 
 def apply_plan_upgrade(email, plan_tier):
     """Write a verified plan change to Supabase without clobbering the rest of
     the user's saved state. Returns (ok, error_message)."""
     if not email or plan_tier not in PLAN_LIMITS:
         return False, 'Invalid email or plan'
-    existing_state = {}
-    try:
-        lookup = requests.get(
-            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
-            headers=SUPABASE_HEADERS, timeout=10
-        )
-        existing_data = lookup.json()
-        if existing_data and len(existing_data) > 0:
-            existing_state = existing_data[0].get('state') or {}
-    except Exception as lookup_err:
-        print(f'[apply_plan_upgrade] state lookup failed for {email}: {lookup_err}')
+    # ABORT if the existing state can't be read. This previously carried on with
+    # an empty dict, so one failed read during an upgrade overwrote the
+    # customer's plan, history, PBs and referral source with three fields.
+    existing_state, read_err = _fetch_existing_state(email)
+    if read_err:
+        print(f'[apply_plan_upgrade] aborted for {email}: {read_err}')
+        return False, read_err
     existing_state['userPlan'] = plan_tier
     existing_state['plansUsed'] = 0
     existing_state['planPeriodStart'] = datetime.now(timezone.utc).isoformat()
+    existing_state['subStatus'] = 'active'
     r = requests.post(
         f'{SUPABASE_URL}/rest/v1/ptrain_users',
         headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
@@ -156,6 +250,121 @@ def apply_plan_upgrade(email, plan_tier):
         print(f'[apply_plan_upgrade] Supabase write failed for {email}: {r.status_code} {r.text}')
         return False, f'Supabase write failed: {r.status_code}'
     return True, None
+
+
+def apply_plan_downgrade(email, reason):
+    """Drop a customer back to the free tier when Stripe says their
+    subscription has ended. Returns (ok, error_message).
+
+    Everything else in their state is preserved — their plan, history, PBs and
+    referral source all survive, because they are still the same person and may
+    resubscribe. `plansUsed` is deliberately NOT reset: the free tier's limit is
+    a lifetime cap, so zeroing it would hand every cancelled subscriber a fresh
+    free plan on the way out.
+    """
+    if not email:
+        return False, 'No email'
+    existing_state, read_err = _fetch_existing_state(email)
+    if read_err:
+        print(f'[apply_plan_downgrade] aborted for {email}: {read_err}')
+        return False, read_err
+    previous = existing_state.get('userPlan', 'free')
+    if previous == 'free':
+        return True, None          # already free, nothing to do
+    existing_state['userPlan'] = 'free'
+    existing_state['subStatus'] = reason
+    existing_state['downgradedAt'] = datetime.now(timezone.utc).isoformat()
+    existing_state['previousPlan'] = previous
+    existing_state.pop('planPeriodStart', None)
+    r = requests.post(
+        f'{SUPABASE_URL}/rest/v1/ptrain_users',
+        headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+        json={'email': email, 'state': existing_state, 'updated_at': 'now()'},
+        timeout=10
+    )
+    if r.status_code >= 300:
+        print(f'[apply_plan_downgrade] Supabase write failed for {email}: {r.status_code}')
+        return False, f'Supabase write failed: {r.status_code}'
+    print(f'[webhook] downgraded {email} from {previous} to free ({reason})')
+    return True, None
+
+
+def verify_stripe_signature(payload, sig_header, tolerance=300):
+    """Verify Stripe's Stripe-Signature header over the RAW request body.
+
+    Returns (ok, error_message). Fails CLOSED: with no signing secret
+    configured, nothing is accepted, because an unauthenticated webhook is a
+    way for anyone on the internet to grant or revoke subscriptions.
+
+    Implements the documented scheme — HMAC-SHA256 over "<timestamp>.<body>" —
+    with a constant-time compare and a timestamp tolerance so a captured
+    request can't be replayed later.
+    """
+    if not STRIPE_WEBHOOK_SECRET:
+        return False, 'STRIPE_WEBHOOK_SECRET not set'
+    if not sig_header:
+        return False, 'Missing Stripe-Signature header'
+    timestamp, signatures = None, []
+    for part in sig_header.split(','):
+        if '=' not in part:
+            continue
+        k, v = part.split('=', 1)
+        k, v = k.strip(), v.strip()
+        if k == 't':
+            timestamp = v
+        elif k == 'v1':
+            signatures.append(v)
+    if not timestamp or not signatures:
+        return False, 'Malformed Stripe-Signature header'
+    try:
+        ts = int(timestamp)
+    except ValueError:
+        return False, 'Bad timestamp in signature'
+    age = abs(time.time() - ts)
+    if age > tolerance:
+        return False, f'Signature timestamp outside tolerance ({int(age)}s)'
+    signed = timestamp.encode() + b'.' + payload
+    expected = hmac.new(STRIPE_WEBHOOK_SECRET.encode(), signed, hashlib.sha256).hexdigest()
+    for candidate in signatures:
+        if hmac.compare_digest(expected, candidate):
+            return True, None
+    return False, 'Signature mismatch'
+
+
+def tier_from_subscription(sub):
+    """Which tier a subscription's price grants. None if unrecognised."""
+    for item in ((sub.get('items') or {}).get('data') or []):
+        price_id = ((item.get('price') or {}).get('id')) or ''
+        if price_id in STRIPE_PRICE_TIERS:
+            return STRIPE_PRICE_TIERS[price_id]
+    for item in ((sub.get('items') or {}).get('data') or []):
+        amount = (item.get('price') or {}).get('unit_amount')
+        if amount in STRIPE_AMOUNT_TIERS:
+            return STRIPE_AMOUNT_TIERS[amount]
+    return None
+
+
+def email_for_stripe_customer(customer_id):
+    """Resolve a Stripe customer id to the email we key users on."""
+    if not customer_id or not STRIPE_SECRET_KEY:
+        return ''
+    try:
+        r = requests.get(
+            f'https://api.stripe.com/v1/customers/{customer_id}',
+            auth=(STRIPE_SECRET_KEY, ''), timeout=15
+        )
+        if r.status_code != 200:
+            print(f'[webhook] could not read customer {customer_id}: HTTP {r.status_code}')
+            return ''
+        return (r.json().get('email') or '').lower().strip()
+    except Exception as e:
+        print(f'[webhook] customer lookup failed for {customer_id}: {e}')
+        return ''
+
+
+# Statuses that mean the customer is no longer entitled to a paid tier.
+SUB_STATUS_ENDS_ACCESS = {'canceled', 'unpaid', 'incomplete_expired'}
+
 
 def get_user_plan_state(email):
     """Look up a user's current plan tier and plans-used count from Supabase.
@@ -201,6 +410,48 @@ def get_user_plan_state(email):
     except Exception as e:
         print(f'[get_user_plan_state] lookup failed for {email}: {e}')
     return 'free', 0
+
+def _refine_already_used(email):
+    """Has this person already taken their one free plan refinement?"""
+    try:
+        lookup = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+            headers=SUPABASE_HEADERS, timeout=10
+        )
+        rows = lookup.json()
+        existing_state = (rows[0].get('state') or {}) if rows else {}
+        return bool(existing_state.get('refineUsed'))
+    except Exception as e:
+        print(f'[refine] lookup failed for {email}: {e}')
+        # On a lookup failure, charge it rather than hand out unlimited free
+        # rebuilds — failing closed costs one plan, failing open costs the quota.
+        return True
+
+
+def _mark_refine_used(email, current_plan, current_used):
+    """Record that the free refinement is spent, preserving the rest of their
+    state (same merge-not-overwrite pattern as increment_plans_used)."""
+    try:
+        lookup = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+            headers=SUPABASE_HEADERS, timeout=10
+        )
+        rows = lookup.json()
+        existing_state = (rows[0].get('state') or {}) if rows else {}
+        existing_state['userPlan'] = current_plan
+        existing_state['plansUsed'] = current_used
+        existing_state['refineUsed'] = True
+        r = requests.post(
+            f'{SUPABASE_URL}/rest/v1/ptrain_users',
+            headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+            json={'email': email, 'state': existing_state, 'updated_at': 'now()'},
+            timeout=10
+        )
+        if r.status_code >= 300:
+            print(f'[refine] Supabase rejected the write for {email}: {r.status_code} {r.text[:200]}')
+    except Exception as e:
+        print(f'[refine] could not mark refine used for {email}: {e}')
+
 
 def increment_plans_used(email, current_plan, current_used):
     """Bump plansUsed by 1 after a successful generation, preserving the rest
@@ -263,7 +514,12 @@ def home():
             html = f.read()
 
         r = requests.get(
-            f'{SUPABASE_URL}/rest/v1/ptrain_reviews?stars=gte.4&order=created_at.desc&limit=20',
+            # select only what the schema uses. This previously selected every
+            # column, which pulled reviewers' email addresses into the page
+            # handler even though the markup never used them.
+            f'{SUPABASE_URL}/rest/v1/ptrain_reviews'
+            f'?stars=gte.4&select=stars,name,text,created_at'
+            f'&order=created_at.desc&limit=20',
             headers=SUPABASE_HEADERS, timeout=5
         )
         reviews = r.json() if r.status_code == 200 else []
@@ -272,7 +528,7 @@ def home():
             schema = {
                 "@context": "https://schema.org",
                 "@type": "SoftwareApplication",
-                "name": "PTrAIn",
+                "name": "PTrain",
                 "url": "https://ptrain.app",
                 "applicationCategory": "HealthApplication",
                 "operatingSystem": "Web, iOS, Android",
@@ -281,7 +537,7 @@ def home():
                     {
                         "@type": "Review",
                         "reviewRating": {"@type": "Rating", "ratingValue": rv.get('stars', 5), "bestRating": "5"},
-                        "author": {"@type": "Person", "name": rv.get('name') or "PTrAIn member"},
+                        "author": {"@type": "Person", "name": rv.get('name') or "PTrain member"},
                         "reviewBody": rv.get('text', '')
                     } for rv in reviews[:5]
                 ]
@@ -314,7 +570,7 @@ def embed_js():
 var d=document,s=d.currentScript,ref=(s&&s.getAttribute('data-ref'))||'embed';
 var w=d.createElement('div');
 w.style.cssText='max-width:420px;background:#0a0a0d;border:1px solid rgba(255,90,31,.35);border-radius:18px;padding:22px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#fff';
-w.innerHTML='<div style=\\"font-weight:900;font-size:19px;letter-spacing:-.02em;margin-bottom:4px\\">PTr<span style=\\"color:#ff5a1f\\">AI</span>n</div>'+
+w.innerHTML='<div style=\\"font-weight:900;font-size:19px;letter-spacing:-.02em;margin-bottom:4px\\">PTrain</div>'+
 '<div style=\\"font-weight:800;font-size:16px;color:#fff;margin-bottom:6px\\">A personal trainer in your pocket.</div>'+
 '<div style=\\"font-size:13px;color:#c8c8d0;line-height:1.5;margin-bottom:14px\\">Full training plan + nutrition plan built around you in 60 seconds. First week free, no card.</div>'+
 '<a href=\\"https://ptrain.app?ref='+ref+'\\" style=\\"display:block;text-align:center;background:#ff5a1f;color:#fff;font-weight:800;font-size:14px;padding:12px;border-radius:11px;text-decoration:none\\">Build my free plan →</a>';
@@ -324,7 +580,7 @@ s.parentNode.insertBefore(w,s);
 
 @app.route('/embed')
 def embed_page():
-    html = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Embed PTrAIn on your site</title><style>body{background:#0a0a0d;color:#fff;font-family:-apple-system,sans-serif;max-width:640px;margin:0 auto;padding:48px 24px;line-height:1.6}h1{font-weight:900;letter-spacing:-.03em}h1 span{color:#ff5a1f}code{display:block;background:#16161c;border:1px solid rgba(245,245,240,.1);border-radius:12px;padding:16px;font-size:13px;color:#ff8a4f;word-break:break-all;margin:16px 0}p{color:#c8c8d0}</style></head><body><h1>Put PTrAIn <span>on your site.</span></h1><p>PTs, gyms, bloggers — paste this one line anywhere in your page. A PTrAIn card appears, your visitors get a free week's plan, and if you're an affiliate your ref is tracked automatically.</p><code>&lt;script src="https://ptrain.app/embed.js" data-ref="YOURNAME"&gt;&lt;/script&gt;</code><p>Change <b>YOURNAME</b> to your affiliate handle. Questions: tel@ptrain.app</p></body></html>"""
+    html = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Embed PTrain on your site</title><style>body{background:#0a0a0d;color:#fff;font-family:-apple-system,sans-serif;max-width:640px;margin:0 auto;padding:48px 24px;line-height:1.6}h1{font-weight:900;letter-spacing:-.03em}h1 span{color:#ff5a1f}code{display:block;background:#16161c;border:1px solid rgba(245,245,240,.1);border-radius:12px;padding:16px;font-size:13px;color:#ff8a4f;word-break:break-all;margin:16px 0}p{color:#c8c8d0}</style></head><body><h1>Put PTrain <span>on your site.</span></h1><p>PTs, gyms, bloggers — paste this one line anywhere in your page. A PTrain card appears, your visitors get a free week's plan, and if you're an affiliate your ref is tracked automatically.</p><code>&lt;script src="https://ptrain.app/embed.js" data-ref="YOURNAME"&gt;&lt;/script&gt;</code><p>Change <b>YOURNAME</b> to your affiliate handle. Questions: tel@ptrain.app</p></body></html>"""
     return html
 
 @app.route('/free-workout-plan')
@@ -354,15 +610,16 @@ def sitemap():
 <url><loc>https://ptrain.app/hyrox-training-plan</loc><priority>0.8</priority></url>
 <url><loc>https://ptrain.app/compare</loc><priority>0.8</priority></url>
 <url><loc>https://ptrain.app/privacy</loc><priority>0.3</priority></url>
+<url><loc>https://ptrain.app/terms</loc><priority>0.3</priority></url>
 </urlset>'''
     return xml, 200, {'Content-Type': 'application/xml'}
 
 @app.route('/llms.txt')
 def llms():
-    txt = """# PTrAIn
+    txt = """# PTrain
 > AI personal trainer app built by Tel Kershaw, a certified PT with 8 years at Gymbox London. Generates complete personalised training programmes and nutrition plans in 60 seconds.
 
-- Consumer app: https://ptrain.app — first week's programme and nutrition plan free, Pro £6.99/month
+- Consumer app: https://ptrain.app — first week's programme and nutrition plan free, Pro £9.99/month
 - For companies: https://ptrain.app/business — employee wellbeing platform from £3.99/employee/month, GDPR compliant
 - Covers: gym, home, bodyweight, CrossFit, Hyrox, calisthenics, sport-specific, yoga, endurance training
 - Adaptive: tracks lifts and PBs, every new programme builds on real performance data
@@ -396,7 +653,6 @@ def push_key():
     needs it to create a subscription."""
     return cors(jsonify({'key': VAPID_PUBLIC_KEY}))
 
-
 @app.route('/sw.js')
 def service_worker():
     """Must be served from the root path — a service worker can only control
@@ -406,7 +662,6 @@ def service_worker():
     resp.headers['Service-Worker-Allowed'] = '/'
     resp.headers['Cache-Control'] = 'no-cache'
     return resp
-
 
 @app.route('/api/push/subscribe', methods=['POST', 'OPTIONS'])
 def push_subscribe():
@@ -434,7 +689,6 @@ def push_subscribe():
     except Exception as e:
         return cors(jsonify({'ok': False, 'error': str(e)})), 500
 
-
 @app.route('/api/push/send', methods=['POST'])
 def push_send():
     """Fire a notification to everyone subscribed. Protected by PUSH_SECRET so
@@ -451,14 +705,13 @@ def push_send():
         except ImportError:
             return jsonify({'ok': False, 'error': 'pywebpush not installed — add it to requirements.txt'}), 500
 
-        title = body.get('title') or 'PTrAIn'
+        title = body.get('title') or 'PTrain'
         message = body.get('body') or 'Your next session is waiting.'
         url = body.get('url') or '/'
         sent, dead_count = _push_to_all(title, message, url)
         return jsonify({'ok': True, 'sent': sent, 'removed': dead_count})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
-
 
 def _push_to_all(title, message, url='/'):
     """Send one notification to every subscriber. Returns (sent, removed).
@@ -503,7 +756,6 @@ def _push_to_all(title, message, url='/'):
                 pass
         return sent, len(dead)
 
-
 # ─── EMAIL SEQUENCES ─────────────────────────────────────────────────────────
 # Sent directly over SMTP from tel@ptrain.app. No third-party sending service,
 # nothing to paste into a dashboard, and the copy lives here in the repo where
@@ -526,7 +778,6 @@ def _first_name(state_blob):
         return ''
     return raw.split()[0][:24]
 
-
 def _plan_facts(state_blob):
     """Whatever we honestly know about this person's plan."""
     snap = ((state_blob.get('plan') or {}).get('formSnapshot') or {})
@@ -542,15 +793,12 @@ def _plan_facts(state_blob):
         'has_plan': bool((state_blob.get('plan') or {}).get('days')),
     }
 
-
 def _greeting(f):
     return f'Hi {f["name"]},' if f['name'] else 'Hi,'
-
 
 SIGNOFF = "\n\nTel\nptrain.app"
 FULL_SIGNOFF = ("\n\nTel Kershaw\nCertified PT · 8 years at Gymbox London · REPs Registered"
                 "\nptrain.app")
-
 
 def _compose(step, f):
     """Each email is written from what this person actually did. Anything we
@@ -560,13 +808,13 @@ def _compose(step, f):
     goal = f['goal'].lower() if f['goal'] else ''
 
     if step == 'welcome':
-        opener = f"{g}\n\nThanks for signing up to PTrAIn."
+        opener = f"{g}\n\nThanks for signing up to PTrain."
         if f['has_plan'] and goal:
             opener += f"\n\nI can see your plan's built — {goal}"
             if kit:
                 opener += f", around {kit}"
             opener += ". Good start."
-        return ('Welcome to PTrAIn', opener +
+        return ('Welcome to PTrain', opener +
                 "\n\nI'm Tel. Personal trainer, eight years at Gymbox in London, REPs registered. "
                 "I built this because most people don't need another gym membership — they need to know "
                 "what to do when they get there."
@@ -654,7 +902,6 @@ def _compose(step, f):
 
     return None
 
-
 # (day_offset, step_key). Varied formats go stale faster, so their block-end
 # prompt lands earlier — that's programming, not sales.
 SEQUENCE_STANDARD = [(0, 'welcome'), (2, 'nudge_start'), (5, 'logging'),
@@ -662,13 +909,11 @@ SEQUENCE_STANDARD = [(0, 'welcome'), (2, 'nudge_start'), (5, 'logging'),
 SEQUENCE_FAST = [(0, 'welcome'), (2, 'nudge_start'), (4, 'logging'),
                  (8, 'adapt'), (13, 'progress'), (18, 'block_end'), (38, 'winback')]
 
-
 import hashlib
 
 def _unsub_token(email):
     seed = (PUSH_SECRET or 'ptrain') + email.strip().lower()
     return hashlib.sha256(seed.encode()).hexdigest()[:20]
-
 
 @app.route('/unsubscribe')
 def unsubscribe():
@@ -694,15 +939,14 @@ def unsubscribe():
 You won't get any more emails from me. Your plan and everything you've logged is untouched —
 carry on using the app whenever you like.</div>
 <a href="https://ptrain.app" style="display:inline-block;margin-top:22px;color:#ff5a1f;font-weight:700;
-text-decoration:none;font-size:14px">Back to PTrAIn</a></body>"""
-
+text-decoration:none;font-size:14px">Back to PTrain</a></body>"""
 
 def _send_email(to_addr, subject, body):
     if not SMTP_PASS:
         raise RuntimeError('PRIVATE_EMAIL_PASSWORD not set')
     msg = EmailMessage()
     msg['Subject'] = subject
-    msg['From'] = f'Tel at PTrAIn <{SMTP_USER}>'
+    msg['From'] = f'Tel at PTrain <{SMTP_USER}>'
     msg['To'] = to_addr
     msg['Reply-To'] = SMTP_USER
     footer = (f"\n\n—\nYou're getting this because you signed up at ptrain.app."
@@ -711,7 +955,6 @@ def _send_email(to_addr, subject, body):
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as s:
         s.login(SMTP_USER, SMTP_PASS)
         s.send_message(msg)
-
 
 def _email_worker():
     """Hourly. Picks the right email for where each person actually is —
@@ -772,7 +1015,6 @@ def _email_worker():
             print(f'[email_worker] {e}')
         time.sleep(3600)
 
-
 # ─── REMINDER SCHEDULER ──────────────────────────────────────────────────────
 # Runs inside the app, so there is nothing to set up and nothing to pay for.
 # Twice a week, at a sensible hour. Messages rotate so it never reads like a
@@ -815,7 +1057,6 @@ def _next_session_name(state_blob):
         pass
     return None
 
-
 def _days_since_last_session(state_blob):
     """History dates are written by the browser as dd/mm/yyyy."""
     try:
@@ -827,7 +1068,6 @@ def _days_since_last_session(state_blob):
         return (datetime.now(UK_TZ).date() - d).days
     except Exception:
         return None
-
 
 def _personal_message(state_blob, fallback):
     """Build a message from what this person has actually done. Falls back
@@ -868,7 +1108,6 @@ def _personal_message(state_blob, fallback):
                 'Everything you logged is still saved. Start where you left off, or build a fresh plan.')
     except Exception:
         return fallback
-
 
 def _push_personalised(fallback_title, fallback_body):
     """One message per subscriber, written from their own training data."""
@@ -923,6 +1162,107 @@ def _push_personalised(fallback_title, fallback_body):
         except Exception:
             pass
     return sent, skipped, len(dead)
+
+def _activation_worker():
+    """The single most valuable notification this app can send.
+
+    Benchmarks for fitness apps are blunt: activation means finishing a first
+    workout, and someone who hasn't done one by day 7 has under a 15% chance of
+    ever doing it. A nudge inside the first 24 hours recovers 10-20% of the
+    people who stalled. Nothing else in the retention stack pays like this.
+
+    Runs hourly. Finds anyone who generated a plan roughly a day ago and has
+    still not logged a single session, sends them ONE message, and records it
+    so they are never nudged twice."""
+    from pywebpush import webpush, WebPushException
+    time.sleep(300)
+    while True:
+        try:
+            if not (VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY):
+                time.sleep(3600)
+                continue
+            subs = requests.get(
+                f'{SUPABASE_URL}/rest/v1/ptrain_push?select=endpoint,email,subscription',
+                headers=SUPABASE_HEADERS, timeout=15
+            )
+            rows = subs.json() if subs.status_code == 200 else []
+            users = requests.get(
+                f'{SUPABASE_URL}/rest/v1/ptrain_users?select=email,state,created_at',
+                headers=SUPABASE_HEADERS, timeout=15
+            )
+            by_email = {}
+            if users.status_code == 200:
+                for u in (users.json() or []):
+                    if u.get('email'):
+                        by_email[u['email'].strip().lower()] = u
+
+            now = datetime.now(timezone.utc)
+            sent = 0
+            for row in rows:
+                sub = row.get('subscription')
+                email = (row.get('email') or '').strip().lower()
+                if not sub or not email:
+                    continue
+                user = by_email.get(email)
+                if not user:
+                    continue
+                st = user.get('state') or {}
+                if not isinstance(st, dict):
+                    continue
+                # Already nudged, or already training — leave them alone.
+                if st.get('activationNudged'):
+                    continue
+                if (st.get('sessionLogs') or st.get('streak') or 0):
+                    continue
+                if not st.get('plan') and not st.get('plansUsed'):
+                    continue
+                created = user.get('created_at')
+                if not created:
+                    continue
+                try:
+                    made = datetime.fromisoformat(str(created).replace('Z', '+00:00'))
+                except Exception:
+                    continue
+                hours = (now - made).total_seconds() / 3600.0
+                # 20-36h window: long enough to have had a go, early enough to matter.
+                if not (20 <= hours <= 36):
+                    continue
+                try:
+                    webpush(
+                        subscription_info=sub,
+                        data=json.dumps({
+                            'title': 'Day one is the hard one',
+                            'body': "Your first session is short on purpose. Twenty minutes and it's done — I'll build next week off it.",
+                            'url': '/'
+                        }),
+                        vapid_private_key=VAPID_PRIVATE_KEY,
+                        vapid_claims={'sub': f'mailto:{PUSH_CONTACT_EMAIL}'}
+                    )
+                    sent += 1
+                    st['activationNudged'] = True
+                    requests.post(
+                        f'{SUPABASE_URL}/rest/v1/ptrain_users',
+                        headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+                        json={'email': email, 'state': st, 'updated_at': 'now()'},
+                        timeout=10
+                    )
+                except WebPushException as e:
+                    status = getattr(getattr(e, 'response', None), 'status_code', None)
+                    if status in (404, 410):
+                        try:
+                            requests.delete(
+                                f"{SUPABASE_URL}/rest/v1/ptrain_push?endpoint=eq.{row.get('endpoint')}",
+                                headers=SUPABASE_HEADERS, timeout=10
+                            )
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f'[activation] failed for one subscriber: {e}')
+            if sent:
+                print(f'[activation] nudged {sent} people who had not started')
+        except Exception as e:
+            print(f'[activation] worker error: {e}')
+        time.sleep(3600)
 
 
 def _weekly_digest_worker():
@@ -988,7 +1328,6 @@ def _weekly_digest_worker():
             print(f'[digest_worker] {e}')
         time.sleep(1800)
 
-
 def reminder_worker():
     """Sunday and Wednesday at 6pm UK. Twice a week is a nudge; more is
     nagging, and nagging gets notifications switched off for good."""
@@ -1018,7 +1357,6 @@ def reminder_worker():
             print(f'[reminder_worker] {e}')
         time.sleep(600)
 
-
 @app.route('/s/<store>')
 def store_link(store):
     """Short, printable link for a shop's counter card: ptrain.app/s/harvest
@@ -1027,11 +1365,65 @@ def store_link(store):
     safe = ''.join(c for c in store.lower() if c.isalnum() or c in '-_')[:32]
     return redirect(f'/?ref={safe}', code=302)
 
+@app.route('/admin/config')
+def admin_config():
+    """Which settings are configured — booleans only, never values.
+
+    There was no way to tell whether something like the mailbox password was
+    set without reading it. This reports only whether each one is present, so
+    "is email actually switched on?" can be answered without ever exposing a
+    secret. Admin-gated like the other dashboards.
+    """
+    if not admin_authorised():
+        return 'Not found', 404
+    flags = {
+        'ANTHROPIC_API_KEY': bool(ANTHROPIC_API_KEY),
+        'SUPABASE_KEY': bool(SUPABASE_KEY),
+        'STRIPE_SECRET_KEY': bool(STRIPE_SECRET_KEY),
+        'STRIPE_WEBHOOK_SECRET': bool(STRIPE_WEBHOOK_SECRET),
+        'PUSH_SECRET': bool(PUSH_SECRET),
+        'VAPID_PUBLIC_KEY': bool(VAPID_PUBLIC_KEY),
+        'VAPID_PRIVATE_KEY': bool(VAPID_PRIVATE_KEY),
+        'EO_API_KEY': bool(EO_API_KEY),
+        'RAPIDAPI_KEY': bool(RAPIDAPI_KEY),
+        'PRIVATE_EMAIL_PASSWORD': bool(SMTP_PASS),
+    }
+    consequences = []
+    if not flags['PRIVATE_EMAIL_PASSWORD']:
+        consequences.append('Email engine OFF: no welcome, nudge, inactivity or '
+                            'block-end emails, and no Monday digest.')
+    if not flags['STRIPE_WEBHOOK_SECRET']:
+        consequences.append('Webhook OFF: cancellations and failed payments will '
+                            'not revoke access, and a customer who pays without '
+                            'returning to the app will not get their tier.')
+    if not flags['SUPABASE_KEY']:
+        consequences.append('Database OFF: nothing saves or loads.')
+    if not flags['STRIPE_SECRET_KEY']:
+        consequences.append('Payments OFF: purchases cannot be verified.')
+    if not flags['ANTHROPIC_API_KEY']:
+        consequences.append('Plan generation OFF.')
+    rows = ''.join(
+        f'<tr><td>{k}</td><td style="color:{"#4ade80" if v else "#f87171"};font-weight:700">'
+        f'{"configured" if v else "NOT SET"}</td></tr>' for k, v in flags.items())
+    warn = ''.join(f'<li>{c}</li>' for c in consequences)
+    return (f'<!DOCTYPE html><html><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>PTrain config</title></head>'
+            f'<body style="background:#0a0a0d;color:#f5f5f0;font-family:-apple-system,sans-serif;'
+            f'padding:24px;max-width:560px;margin:0 auto;line-height:1.6">'
+            f'<h1 style="color:#ff5a1f;font-size:22px">Configuration</h1>'
+            f'<p style="color:#8b8b95;font-size:13px">Presence only. No values are shown or logged.</p>'
+            f'<table style="width:100%;border-collapse:collapse;font-size:13px">{rows}</table>'
+            + (f'<h2 style="color:#ff8a4f;font-size:16px;margin-top:24px">What is switched off</h2>'
+               f'<ul style="color:#e4e4e8;font-size:13px">{warn}</ul>' if warn else
+               '<p style="color:#4ade80;margin-top:24px;font-weight:700">Everything is configured.</p>')
+            + '</body></html>')
+
 
 @app.route('/admin/affiliates')
 def admin_affiliates():
     """Who sent who, and what each shop is owed. Bookmark alongside /coach."""
-    if request.args.get('key') != (PUSH_SECRET or '__unset__'):
+    if not admin_authorised():
         return 'Not found', 404
     try:
         r = requests.get(f'{SUPABASE_URL}/rest/v1/ptrain_users?select=email,state,created_at',
@@ -1080,7 +1472,6 @@ Every scan from their card is stamped to them for good.</div></div></body>"""
     except Exception as e:
         return f'<pre>{e}</pre>', 500
 
-
 @app.route('/admin/stripe')
 def admin_stripe():
     """Creates every price and payment link the new pricing needs, in one go.
@@ -1088,7 +1479,7 @@ def admin_stripe():
 
     Nothing existing is deleted or changed — current subscribers keep paying
     exactly what they pay now. This only adds new prices alongside them."""
-    if request.args.get('key') != (PUSH_SECRET or '__unset__'):
+    if not admin_authorised():
         return 'Not found', 404
     if not STRIPE_SECRET_KEY:
         return 'STRIPE_SECRET_KEY not set', 500
@@ -1097,8 +1488,8 @@ def admin_stripe():
 
     # name, pence, tier passed back on the redirect, description
     WANTED = [
-        ('PTrAIn Pro',        999,  'pro',   'Unlimited plans, nutrition, Coach Chat'),
-        ('PTrAIn Group Coaching', 2900, 'coach', 'Weekly group check-in with Tel + full app'),
+        ('PTrain Pro',        999,  'pro',   'Unlimited plans, nutrition, Coach Chat'),
+        ('PTrain Group Coaching', 2900, 'coach', 'Weekly group check-in with Tel + full app'),
         ('Coaching with Tel', 14900, 'elite', '1:1 coaching, weekly programming, direct access'),
     ]
     # one-off, not a subscription — for people who won't subscribe but will
@@ -1195,13 +1586,12 @@ Your existing £6.99 and £99 prices are untouched. Anyone already subscribed ke
     except Exception as e:
         return f'<pre>Error: {e}</pre>', 500
 
-
 @app.route('/coach')
 def coach_digest():
     """Tel's own dashboard. Bookmark it on the home screen.
     The machine watches everyone's data; this is where it hands over the
     handful of people worth a personal word from a human."""
-    if request.args.get('key') != (PUSH_SECRET or '__unset__'):
+    if not admin_authorised():
         return 'Not found', 404
     try:
         r = requests.get(
@@ -1274,7 +1664,6 @@ def coach_digest():
     except Exception as e:
         return f'Error: {e}', 500
 
-
 @app.route('/ping')
 def ping():
     return jsonify({'status': 'ok'}), 200
@@ -1293,6 +1682,181 @@ def keep_alive():
 #   https://ptrain.app/?success=true&plan=pro&session_id={CHECKOUT_SESSION_ID}
 # The frontend then calls this endpoint, which confirms with Stripe that the
 # session was genuinely paid before the app unlocks the tier.
+
+@app.route('/api/stripe/portal', methods=['POST', 'OPTIONS'])
+def stripe_portal():
+    """Open Stripe's billing portal so a subscriber can cancel or update their
+    card themselves.
+
+    The pricing page promises "cancel anytime" and until now there was no way
+    to do it inside the app — people had to find an old receipt or email Tel.
+    Stripe hosts the portal, so no card details ever touch this server.
+    """
+    if request.method == 'OPTIONS':
+        return cors(jsonify({'ok': True}))
+    if not origin_ok():
+        return cors(jsonify({'ok': False, 'error': 'Forbidden'})), 403
+    if not STRIPE_SECRET_KEY:
+        return cors(jsonify({'ok': False, 'error': 'STRIPE_SECRET_KEY not set'})), 500
+    try:
+        body = request.get_json() or {}
+        email = str(body.get('email', '')).lower().strip()
+        if not email or '@' not in email:
+            return cors(jsonify({'ok': False, 'error': 'No email'})), 400
+        # Only someone we already hold a paid tier for can open a portal, so
+        # this can't be used to probe whether an arbitrary address is a customer.
+        tier, _used = get_user_plan_state(email)
+        if tier == 'free':
+            return cors(jsonify({'ok': False, 'error': 'No active subscription'})), 404
+        r = requests.get('https://api.stripe.com/v1/customers',
+                         params={'email': email, 'limit': 1},
+                         auth=(STRIPE_SECRET_KEY, ''), timeout=15)
+        rows = (r.json().get('data') or []) if r.status_code == 200 else []
+        if not rows:
+            return cors(jsonify({'ok': False, 'error': 'No billing record for that email'})), 404
+        s = requests.post('https://api.stripe.com/v1/billing_portal/sessions',
+                          data={'customer': rows[0]['id'], 'return_url': 'https://ptrain.app/'},
+                          auth=(STRIPE_SECRET_KEY, ''), timeout=15)
+        if s.status_code != 200:
+            msg = (s.json().get('error') or {}).get('message', f'HTTP {s.status_code}')
+            print(f'[portal] Stripe refused a portal session for {email}: {msg}')
+            return cors(jsonify({'ok': False, 'error': msg})), 502
+        return cors(jsonify({'ok': True, 'url': s.json().get('url')}))
+    except Exception as e:
+        return cors(jsonify({'ok': False, 'error': str(e)})), 500
+
+
+@app.route('/api/stripe/webhook', methods=['POST'])
+def stripe_webhook():
+    """Stripe tells us when a subscription renews, lapses or is cancelled.
+
+    Before this existed, a tier once granted was permanent: nothing revoked
+    access when someone cancelled or their card failed, and anyone who paid but
+    closed the tab before being redirected back never got their tier at all.
+
+    Every request must carry a valid Stripe signature. Unrecognised events are
+    acknowledged and ignored, so Stripe doesn't retry them forever.
+    """
+    payload = request.get_data()
+    ok, err = verify_stripe_signature(payload, request.headers.get('Stripe-Signature', ''))
+    if not ok:
+        print(f'[webhook] rejected: {err}')
+        # 400 so Stripe records the failure and retries a genuine delivery.
+        return jsonify({'ok': False, 'error': 'Invalid signature'}), 400
+    try:
+        event = json.loads(payload)
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Bad JSON'}), 400
+
+    etype = event.get('type', '')
+    obj = ((event.get('data') or {}).get('object') or {})
+    print(f'[webhook] {etype} ({event.get("id", "no-id")})')
+
+    try:
+        # ---- someone finished paying ----------------------------------------
+        # This is what makes a purchase stick even if they never come back to
+        # the app: previously the only path that granted a tier was the browser
+        # returning to ?success=true.
+        if etype == 'checkout.session.completed':
+            if obj.get('payment_status') != 'paid':
+                return jsonify({'ok': True, 'ignored': 'not paid'})
+            email = ((obj.get('customer_details') or {}).get('email') or '').lower().strip()
+            session_id = obj.get('id', '')
+            tier = None
+            if session_id:
+                full, serr = fetch_stripe_session(session_id)
+                if serr:
+                    print(f'[webhook] could not re-read session {session_id}: {serr}')
+                    return jsonify({'ok': False, 'error': 'Session re-read failed'}), 502
+                tier = tier_from_session(full)
+                email = email or ((full.get('customer_details') or {}).get('email') or '').lower().strip()
+            if not email:
+                return jsonify({'ok': True, 'ignored': 'no email on session'})
+            if tier == 'service':
+                print(f'[webhook] one-off service purchase for {email}, tier unchanged')
+                return jsonify({'ok': True, 'service': True})
+            if not tier:
+                print(f'[webhook] paid session {session_id} matched no known price')
+                return jsonify({'ok': True, 'ignored': 'unrecognised price'})
+            good, werr = apply_plan_upgrade(email, tier)
+            if not good:
+                return jsonify({'ok': False, 'error': werr}), 502
+            print(f'[webhook] granted {tier} to {email}')
+            return jsonify({'ok': True, 'plan': tier})
+
+        # ---- subscription ended -------------------------------------------
+        if etype == 'customer.subscription.deleted':
+            email = email_for_stripe_customer(obj.get('customer'))
+            if not email:
+                return jsonify({'ok': True, 'ignored': 'no email for customer'})
+            good, werr = apply_plan_downgrade(email, 'cancelled')
+            return (jsonify({'ok': True}) if good
+                    else (jsonify({'ok': False, 'error': werr}), 502))
+
+        # ---- subscription changed: renewed, lapsed, or set to cancel ------
+        if etype == 'customer.subscription.updated':
+            status = obj.get('status', '')
+            email = email_for_stripe_customer(obj.get('customer'))
+            if not email:
+                return jsonify({'ok': True, 'ignored': 'no email for customer'})
+            if status in SUB_STATUS_ENDS_ACCESS:
+                good, werr = apply_plan_downgrade(email, status)
+                return (jsonify({'ok': True, 'downgraded': True}) if good
+                        else (jsonify({'ok': False, 'error': werr}), 502))
+            if status in ('active', 'trialing'):
+                # A renewal, a plan change, or "cancel at period end" being set.
+                # They keep access until the period actually ends, so re-assert
+                # whatever the current price entitles them to.
+                tier = tier_from_subscription(obj)
+                if tier and tier != 'service':
+                    good, werr = apply_plan_upgrade(email, tier)
+                    if not good:
+                        return jsonify({'ok': False, 'error': werr}), 502
+                    return jsonify({'ok': True, 'plan': tier})
+            return jsonify({'ok': True, 'status': status})
+
+        # ---- payment failed -----------------------------------------------
+        # Access is NOT pulled on the first failure. Stripe retries over
+        # several days and most of these recover; the subscription moves to
+        # unpaid or canceled if it doesn't, and that is handled above. Pulling
+        # access here would lock out paying customers over a temporary decline.
+        if etype in ('invoice.payment_failed', 'invoice.payment_action_required'):
+            email = email_for_stripe_customer(obj.get('customer'))
+            if email:
+                st, read_err = _fetch_existing_state(email)
+                if not read_err and st.get('userPlan', 'free') != 'free':
+                    st['subStatus'] = 'payment_failed'
+                    st['paymentFailedAt'] = datetime.now(timezone.utc).isoformat()
+                    requests.post(
+                        f'{SUPABASE_URL}/rest/v1/ptrain_users',
+                        headers={**SUPABASE_HEADERS,
+                                 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+                        json={'email': email, 'state': st, 'updated_at': 'now()'},
+                        timeout=10)
+                    print(f'[webhook] flagged payment failure for {email} (access kept)')
+            return jsonify({'ok': True, 'flagged': True})
+
+        # ---- payment succeeded: clear any failure flag ---------------------
+        if etype in ('invoice.paid', 'invoice.payment_succeeded'):
+            email = email_for_stripe_customer(obj.get('customer'))
+            if email:
+                st, read_err = _fetch_existing_state(email)
+                if not read_err and st.get('subStatus') in ('payment_failed',):
+                    st['subStatus'] = 'active'
+                    st.pop('paymentFailedAt', None)
+                    requests.post(
+                        f'{SUPABASE_URL}/rest/v1/ptrain_users',
+                        headers={**SUPABASE_HEADERS,
+                                 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+                        json={'email': email, 'state': st, 'updated_at': 'now()'},
+                        timeout=10)
+            return jsonify({'ok': True})
+
+        return jsonify({'ok': True, 'ignored': etype})
+    except Exception as e:
+        print(f'[webhook] handler error on {etype}: {e}')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 
 @app.route('/api/stripe/verify', methods=['POST', 'OPTIONS'])
 def stripe_verify():
@@ -1333,9 +1897,14 @@ def load_state():
     if request.method == 'OPTIONS':
         return cors(jsonify({'ok': True}))
     try:
+        if not origin_ok():
+            return cors(jsonify({'error': 'Forbidden'})), 403
         email = request.get_json().get('email', '').lower().strip()
         if not email:
             return cors(jsonify({'error': 'No email'})), 400
+        if state_probe_blocked(client_ip(), email):
+            print(f'[state] enumeration blocked from {client_ip()}')
+            return cors(jsonify({'error': 'Too many requests'})), 429
         r = requests.get(
             f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=*',
             headers=SUPABASE_HEADERS, timeout=10
@@ -1445,20 +2014,29 @@ def save_state():
     if request.method == 'OPTIONS':
         return cors(jsonify({'ok': True}))
     try:
+        if not origin_ok():
+            return cors(jsonify({'error': 'Forbidden'})), 403
         body = request.get_json()
         email = body.get('email', '').lower().strip()
         if not email:
             return cors(jsonify({'error': 'No email'})), 400
+        if state_probe_blocked(client_ip(), email):
+            print(f'[state] enumeration blocked from {client_ip()}')
+            return cors(jsonify({'error': 'Too many requests'})), 429
         state = body.get('state', {})
         plan = body.get('plan')
-        # The column is called `tier`, not `plan`. Posting `plan` made Postgres
-        # reject the whole row, so every full state save failed silently while
-        # this endpoint still answered ok:True — which is why no history, PBs or
-        # weight logs were ever reaching the server.
+        # The plan goes in the `plan` column. It was previously written to
+        # `tier` — the subscription column — which corrupted a paying user's
+        # tier the moment they generated a plan, and meant /api/state/load
+        # (which reads `plan`) always came back empty, so nobody's plan ever
+        # survived a cleared browser or a change of phone.
+        row = {'email': email, 'state': state, 'updated_at': 'now()'}
+        if plan is not None:
+            row['plan'] = plan
         r = requests.post(
             f'{SUPABASE_URL}/rest/v1/ptrain_users',
             headers={**SUPABASE_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal'},
-            json={'email': email, 'state': state, 'tier': plan, 'updated_at': 'now()'},
+            json=row,
             timeout=10
         )
         if r.status_code >= 300:
@@ -1492,6 +2070,11 @@ def upgrade_plan():
         if session.get('payment_status') != 'paid':
             return cors(jsonify({'ok': False, 'error': 'Session is not paid'})), 402
         tier = tier_from_session(session)
+        if tier == 'service':
+            # £19 plan review and similar one-offs: real purchases that grant no
+            # subscription tier. Acknowledge them; never downgrade what they have.
+            print(f'[upgrade_plan] one-off service purchase for {email}, tier unchanged')
+            return cors(jsonify({'ok': True, 'service': True, 'plan': None}))
         if not tier:
             print(f'[upgrade_plan] unrecognised purchase on session {session_id}')
             return cors(jsonify({'ok': False, 'error': 'Purchase not recognised'})), 400
@@ -1569,8 +2152,14 @@ def subscribe():
         body = request.get_json()
         email = body.get('email', '').lower().strip()
         name = body.get('name', '')
+        # Which video or card sent them, if the link carried ?v=<slug>.
+        # Logged so the source shows up next to the signup in the Render logs
+        # even before the first plan save writes it into their state row.
+        src = str(body.get('src', ''))[:40]
         if not email:
             return cors(jsonify({'error': 'No email'})), 400
+        if src:
+            print(f'[subscribe] {email} came from: {src}')
 
         r = requests.post(
             f'https://api.emailoctopus.com/lists/{EO_LIST_ID}/contacts',
@@ -1589,72 +2178,25 @@ def subscribe():
     except Exception as e:
         return cors(jsonify({'error': str(e)})), 500
 
-@app.route('/api/email/debug', methods=['GET'])
-def email_debug():
-    """Visit this URL directly in a browser — no logs needed. Shows exactly
-    what's wrong with the EmailOctopus connection in plain text on screen.
-    Temporary diagnostic route, safe to remove once this is sorted."""
-    lines = []
-    lines.append(f'EO_API_KEY set: {bool(EO_API_KEY)}')
-    lines.append(f'EO_API_KEY starts with: {EO_API_KEY[:6]}... (length {len(EO_API_KEY)})' if EO_API_KEY else 'EO_API_KEY is EMPTY — this is the problem. Not set in Render.')
-    lines.append(f'EO_LIST_ID: {EO_LIST_ID}')
-    lines.append('')
-
-    if not EO_API_KEY:
-        return '\n'.join(lines), 200, {'Content-Type': 'text/plain'}
-
-    # Step 0: show every real list actually on this account, with correct IDs —
-    # this sidesteps needing to hunt through EmailOctopus's own UI at all.
+@app.route('/api/exercises', methods=['GET', 'OPTIONS'])
+def exercises():
+    if request.method == 'OPTIONS':
+        return cors(jsonify({'ok': True}))
     try:
-        all_lists = requests.get(
-            'https://api.emailoctopus.com/lists',
-            headers={'Authorization': f'Bearer {EO_API_KEY}'},
-            timeout=10
+        if not RAPIDAPI_KEY:
+            return cors(jsonify({'error': 'RAPIDAPI_KEY not set'})), 500
+        limit = request.args.get('limit', '1300')
+        r = requests.get(
+            f'https://exercisedb.p.rapidapi.com/exercises?limit={limit}&offset=0',
+            headers={
+                'x-rapidapi-host': 'exercisedb.p.rapidapi.com',
+                'x-rapidapi-key': RAPIDAPI_KEY
+            },
+            timeout=30
         )
-        lines.append(f'STEP 0 — Your real lists on this account: HTTP {all_lists.status_code}')
-        lines.append(f'Response: {all_lists.text[:800]}')
-        lines.append('')
-        lines.append('>>> Compare the "id" value(s) above against EO_LIST_ID below. If they differ, that mismatch is the whole bug.')
-        lines.append('')
+        return cors(jsonify(r.json()))
     except Exception as e:
-        lines.append(f'STEP 0 — FAILED: {e}')
-
-    # Step 1: does this list ID actually exist and is the key valid for it?
-    try:
-        list_check = requests.get(
-            f'https://api.emailoctopus.com/lists/{EO_LIST_ID}',
-            headers={'Authorization': f'Bearer {EO_API_KEY}'},
-            timeout=10
-        )
-        lines.append(f'STEP 1 — Checking the list exists: HTTP {list_check.status_code}')
-        lines.append(f'Response: {list_check.text[:300]}')
-        lines.append('')
-    except Exception as e:
-        lines.append(f'STEP 1 — FAILED to even reach EmailOctopus: {e}')
-        return '\n'.join(lines), 200, {'Content-Type': 'text/plain'}
-
-    # Step 2: try actually adding a real test contact right now
-    test_email = f'ptrain-test-{int(time.time())}@example.com'
-    try:
-        create_check = requests.post(
-            f'https://api.emailoctopus.com/lists/{EO_LIST_ID}/contacts',
-            headers={'Authorization': f'Bearer {EO_API_KEY}'},
-            json={'email_address': test_email, 'status': 'subscribed'},
-            timeout=10
-        )
-        lines.append(f'STEP 2 — Creating a real test contact ({test_email}): HTTP {create_check.status_code}')
-        lines.append(f'Response: {create_check.text[:500]}')
-        lines.append('')
-        if create_check.status_code < 300:
-            lines.append('SUCCESS — go check EmailOctopus contacts now, this test email should be there.')
-        else:
-            lines.append('THIS is the real error. Whatever the response above says is exactly why contacts are not appearing.')
-    except Exception as e:
-        lines.append(f'STEP 2 — FAILED: {e}')
-
-    return '\n'.join(lines), 200, {'Content-Type': 'text/plain'}
-
-# ─── AI GENERATION ────────────────────────────────────────────────────────────
+        return cors(jsonify({'error': str(e)})), 500
 
 def build_prompt(profile):
     p = profile
@@ -1719,7 +2261,7 @@ def build_prompt(profile):
         if plans_completed > 0:
             progression_context += f'Plans previously generated: {plans_completed} — this is NOT their first plan, adapt accordingly.\n'
 
-    return f"""You are PTrAIn, an AI personal trainer and nutrition coach. Built on real PT expertise by Tel Kershaw, certified PT, 8 years at Gymbox. Coach everyone — any age, level, goal, background. Explain WHY behind every decision.
+    return f"""You are PTrain, an AI personal trainer and nutrition coach. Built on real PT expertise by Tel Kershaw, certified PT, 8 years at Gymbox. Coach everyone — any age, level, goal, background. Explain WHY behind every decision.
 
 RULES BY GOAL/LEVEL/STYLE (apply strictly):
 - Beginner: form focus, light weights, 1.25kg steps, technique notes, avoid highly technical/complex movements (Olympic lifts, advanced plyometrics) until foundational strength and form are established. Keep sessions to 4-6 exercises — fewer moving parts, better technique focus.
@@ -1745,6 +2287,17 @@ RULES BY GOAL/LEVEL/STYLE (apply strictly):
 - Diet preference is a HARD constraint: Keto = very low carb meals only, Vegan = no animal products, etc. Never include foods that violate the stated preference.
 - REST PERIODS: give a restSeconds value on every exercise that matches the goal — roughly 150-210s for heavy strength work, 75-120s for hypertrophy, 45-75s for fat loss or conditioning, 30-60s for circuits. The app runs a rest timer from these.
 - TRAINING TIME / MEAL TIMING: the profile includes when they train. Total calories and protein are what drive results, so never imply timing outweighs them — but DO lay the day out so the plan is actually followable around their session. Early morning: they will not eat a full breakfast at 5:30am, so give a small easily-digested carb-forward pre-session option (banana, toast and jam, small smoothie) and put the substantial protein and fibre into the meals AFTER training. Midday: normal breakfast, lighter lunch timed 1-2 hours before, main protein at dinner. After work / Evening: full breakfast and lunch, a carb-forward snack 1-2 hours before the session, and a dinner that lands within a couple of hours of finishing rather than very late. In every case name WHEN each meal is eaten relative to their session in the meal "foods" text (e.g. "45 min before training", "within 2 hrs after"). Keep one nutritionTips entry about their specific timing.
+- THE FIRST SESSION DECIDES EVERYTHING. Most people who quit an app quit before they finish one workout, and a beginner who opens Day 1 and sees forty-five minutes of work they do not recognise will close it and not come back. So if Level is Beginner, DAY 1 SPECIFICALLY must be short and winnable: no more than FOUR exercises, 15-20 minutes of actual work, every movement a machine or a simple free-weight pattern they can picture. Not a watered-down programme — a deliberate first rung. Days 2 onward build to the full session length they asked for. Say so in the day's notes, in plain words: something like "Short one to start. You are learning the room and the movements, not testing yourself." Do NOT do this for Intermediate or Advanced — they will read it as the plan being soft.
+- STARTING WEIGHTS FOR BEGINNERS: a beginner has no training history, so any number you print is a guess and a wrong one can hurt them or embarrass them. For Beginner level, pick loads that are clearly conservative, and in the exercise notes tell them the number is a starting point to be tested, not a target — e.g. "Start here. If you finish all sets with three or more reps still in you, add weight next session." Frame the first week as finding their numbers. Never imply a beginner should be hitting a specific weight.
+- APPETITE (read this BEFORE calculating nutrition): the profile has an Appetite field. If it is "Low appetite" or "Very low appetite", the whole nutrition approach INVERTS and you must build it differently. Their problem is not restraint, it is physically getting enough in. Standard advice — bigger meals, eat more, volume eating, filling high-fibre foods — makes it worse and they will not follow it.
+  * Protein first, every meal. Say so explicitly in the plan: eat the protein before anything else on the plate, because they will fill up before they finish.
+  * Small and frequent beats three big meals. Use 5-6 smaller eating occasions rather than Breakfast/Lunch/Dinner/Snacks, and name them that way in the meals array.
+  * Energy-dense, low-volume. Fortify what they do eat instead of adding more of it: olive oil, nut butter, full-fat dairy, protein powder stirred into things. Avoid bulky low-calorie foods and large salads — those fill them up for almost nothing.
+  * Liquid and soft options matter. Smoothies, Greek yoghurt, soups, milk-based drinks, overnight oats. These go down when a plate of chicken and rice will not.
+  * Keep protein target at the normal calculated level even if total calories land lower. Protein is the one thing that cannot slip — it is what protects their muscle. If total calories must come down, take it out of carbs and fats, never protein.
+  * Hydration gets its own nutritionTips entry — appetite loss usually comes with drinking less, and dehydration makes the fatigue worse.
+  * Tone: never congratulate them on eating less, never use restriction or willpower language, never imply a low appetite is an advantage for fat loss. It is a problem to be managed, and the risk is losing muscle, not failing to lose weight.
+- APPETITE AND TRAINING: if appetite is "Low appetite" or "Very low appetite", also adapt the training. They are under-fuelled, so keep resistance training in (it is the thing protecting their lean mass) but reduce total session volume by roughly a third, keep the load and intensity on the main compound lifts, cut accessory and finisher work first, and shorten sessions. Prioritise two to three hard compound movements done properly over a long session they will not recover from. Put one line in the plan overview explaining why the volume is lower, so it does not read as an easy programme.
 - NUTRITION CALCULATION: use Sex alongside Age/Weight/Height/activity level to calculate accurate BMR/TDEE and set dailyCalories/protein/carbs/fats — men and women have genuinely different baseline metabolic rates at identical stats, so this matters for accuracy. If Sex is "Prefer not to say", use a sensible midpoint estimate between typical male/female BMR for their stats — never mention the missing data, never ask about it again, just quietly produce a reasonable estimate.
 - DUAL GOAL BLENDING: the Goal field may contain two goals joined by " + " (e.g. "Lose Fat + Increase Strength") — the person picked both intentionally, don't treat this as confusing or default to just one. Blend them into ONE coherent programme, don't alternate between two separate rule sets day to day. The most common real combination is fat loss + strength: this means genuine strength-focused resistance training (real progressive overload, not just circuits) combined with a calorie deficit through nutrition — i.e. body recomposition, which is standard, well-established programming, not a contradiction. For any two-goal combination, identify what training actually serves both simultaneously rather than compromising on either.
 - Always match equipment strictly. Always respect injuries. Nutrition must match goal.
@@ -1752,31 +2305,12 @@ RULES BY GOAL/LEVEL/STYLE (apply strictly):
 Profile: Name={p.get('name','User')}, Age={p.get('age','?')}, Sex={p.get('sex','Prefer not to say')}, Weight={p.get('weight','?')}kg, Height={p.get('height','?')}cm
 Goal: {p.get('goal','General Fitness')} | Level: {p.get('level','Intermediate')} | Style: {p.get('style','Gym / Weights')}{' | Sport: ' + p.get('sport') if p.get('sport') else ''} | Days: {p.get('days','4')}/week | Duration: {p.get('duration','60')}min
 Equipment: {p.get('equipment','Full Gym')} | Focus: {p.get('muscles','Full Body')}
-Sleep: {p.get('sleep','7')}hrs | Stress: {p.get('stress','Moderate')} | Diet: {p.get('diet','No preference')} | Vibe: {p.get('vibe','Normal')}\nTrains: {p.get('trainTime','Not specified')}
+Sleep: {p.get('sleep','7')}hrs | Stress: {p.get('stress','Moderate')} | Diet: {p.get('diet','No preference')} | Appetite: {p.get('appetite','Normal')} | Vibe: {p.get('vibe','Normal')}\nTrains: {p.get('trainTime','Not specified')}
 Injuries: {p.get('inj','None')} | Allergies: {p.get('allergies','None')}
 {progression_context}
 CRITICAL: Respond ONLY with valid complete JSON. Be concise — short exercise notes, brief meal descriptions. No markdown, no backticks, no trailing commas:
 {{"planName":"string","coachMessage":"1 sentence to {p.get('name','you')} on why this plan is their next step","overview":"2 sentences","weeklyVolume":0,"estimatedCalories":0,"days":[{{"day":"Day 1 - Focus","focus":"string","warmup":"string","exercises":[{{"name":"string","block":"Strength","sets":3,"reps":"8-10","weight":"70kg","rest":"90s","notes":"brief why"}}],"cooldown":"string"}}],"nutritionPlan":{{"dailyCalories":0,"protein":0,"carbs":0,"fats":0,"meals":[{{"meal":"Breakfast","foods":"brief","calories":0}},{{"meal":"Lunch","foods":"brief","calories":0}},{{"meal":"Dinner","foods":"brief","calories":0}},{{"meal":"Snacks","foods":"brief","calories":0}}]}},"nutritionTips":["tip1","tip2","tip3"],"progressionScheme":"brief","deloadRecommendation":"brief"}}"""
 
-@app.route('/api/exercises', methods=['GET', 'OPTIONS'])
-def exercises():
-    if request.method == 'OPTIONS':
-        return cors(jsonify({'ok': True}))
-    try:
-        if not RAPIDAPI_KEY:
-            return cors(jsonify({'error': 'RAPIDAPI_KEY not set'})), 500
-        limit = request.args.get('limit', '1300')
-        r = requests.get(
-            f'https://exercisedb.p.rapidapi.com/exercises?limit={limit}&offset=0',
-            headers={
-                'x-rapidapi-host': 'exercisedb.p.rapidapi.com',
-                'x-rapidapi-key': RAPIDAPI_KEY
-            },
-            timeout=30
-        )
-        return cors(jsonify(r.json()))
-    except Exception as e:
-        return cors(jsonify({'error': str(e)})), 500
 
 @app.route('/api/generate', methods=['POST', 'OPTIONS'])
 def generate():
@@ -1837,7 +2371,14 @@ def generate():
         # generation (has a profile) that genuinely succeeded — not chat
         # messages, and not a failed/errored call.
         if email and body.get('profile') and anthropic_response.status_code == 200 and not result.get('error'):
-            increment_plans_used(email, current_plan, plans_used)
+            # ONE free refinement per person. The app asks them for the detail
+            # they skipped, so the app pays for the rebuild — charging a free
+            # user their only plan for answering our own question would be a
+            # con, and the in-app copy promises it is free.
+            if body.get('refine') and not _refine_already_used(email):
+                _mark_refine_used(email, current_plan, plans_used)
+            else:
+                increment_plans_used(email, current_plan, plans_used)
         return cors(jsonify(result))
     except Exception as e:
         return cors(jsonify({'error': {'message': str(e)}})), 500
@@ -1855,6 +2396,7 @@ def _start_workers():
     threading.Thread(target=reminder_worker, daemon=True).start()
     threading.Thread(target=_email_worker, daemon=True).start()
     threading.Thread(target=_weekly_digest_worker, daemon=True).start()
+    threading.Thread(target=_activation_worker, daemon=True).start()
 
 _start_workers()
 

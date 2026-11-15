@@ -1,6 +1,6 @@
 {
-  "name": "PTrAIn — AI Personal Trainer",
-  "short_name": "PTrAIn",
+  "name": "PTrain — AI Personal Trainer",
+  "short_name": "PTrain",
   "description": "Your AI personal trainer. Complete workout and nutrition plans in 60 seconds.",
   "start_url": "/",
   "display": "standalone",

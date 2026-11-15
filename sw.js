@@ -1,6 +1,6 @@
-/* PTrAIn service worker — push notifications + a light offline shell.
+/* PTrain service worker — push notifications + a light offline shell.
    Bump CACHE_VERSION whenever you want returning users to pull a fresh app. */
-const CACHE_VERSION = 'ptrain-v1';
+const CACHE_VERSION = 'ptrain-v2';
 const CORE = ['/', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -43,7 +43,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('push', event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
-  const title = data.title || 'PTrAIn';
+  const title = data.title || 'PTrain';
   const options = {
     body: data.body || 'Your next session is waiting.',
     icon: '/icon-192.png',
