@@ -513,6 +513,17 @@ async function loadFromServer(email) {
  } catch(e) { return false; }
 }
 
+// ?fresh=1 wipes this device's local copy and starts clean. Server data is
+// untouched — this is for checking the first-run experience without digging
+// through Safari settings.
+try {
+ if (/[?&]fresh=1/.test(location.search)) {
+   try { Object.keys(localStorage).filter(k => k.indexOf('ptrain') === 0).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+   try { sessionStorage.clear(); } catch (e) {}
+   history.replaceState(null, '', location.pathname);
+ }
+} catch (e) {}
+
 loadState();
 
 const PILL_ICONS = {"Gym / Weights": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11\"/></svg>", "CrossFit": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 7.5a3 3 0 0 1 6 0V9\"/><path d=\"M7.5 9h9l1.4 8a4.7 4.7 0 0 1-11.8 0z\"/></svg>", "Hyrox": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 20 10 6l4 7 2.5-3.5L21 20z\"/></svg>", "Calisthenics": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 4h16\"/><circle cx=\"12\" cy=\"9\" r=\"2\"/><path d=\"M8 4l4 3 4-3M12 11v4l-3 5M12 15l3 5\"/></svg>", "Sport Specific": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"13.5\" r=\"7.5\"/><path d=\"M12 13.5V9.5M10 2.5h4M17.5 6.5 19 5\"/></svg>", "Yoga / Mobility": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"5\" r=\"1.8\"/><path d=\"M12 8v5M12 13l-5 3M12 13l5 3M4 20c2.6 1.4 5.4 2 8 2s5.4-.6 8-2\"/></svg>", "Endurance": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"14\" cy=\"4.5\" r=\"1.8\"/><path d=\"M6 20l3.5-5.5L8 10l4-2.5 2.5 3 3.5.8M8 10 5.5 12M12 14.5 14 20\"/></svg>", "HIIT / Circuit": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13 2 4 14h6l-1 8 9-12h-6z\"/></svg>", "Hype": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13 2 4 14h6l-1 8 9-12h-6z\"/></svg>", "Focus": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><circle cx=\"12\" cy=\"12\" r=\"3.5\"/><circle cx=\"12\" cy=\"12\" r=\".5\" fill=\"currentColor\"/></svg>", "Grind": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11\"/></svg>", "Recovery": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6\"/></svg>"};
@@ -574,7 +585,10 @@ function initPills() {
 function collapseOptionalFields() {
  const gen = document.getElementById('tab-generate');
  if (!gen || document.getElementById('optional-fields')) return;
- const wanted = ['training style', 'focus muscles', "today's context"];
+ // Training style deliberately NOT folded away: it is the one input that
+ // changes the shape of the entire programme, and hiding it meant a Hyrox
+ // or CrossFit user got a generic gym plan without ever knowing why.
+ const wanted = ['focus muscles', "today's context"];
  const cards = Array.prototype.slice.call(gen.querySelectorAll('.card')).filter(function (c) {
    const t = c.querySelector('.card-title');
    if (!t) return false;
@@ -592,7 +606,7 @@ function collapseOptionalFields() {
  toggle.type = 'button';
  toggle.className = 'btn-secondary';
  toggle.style.cssText = 'margin-bottom:14px';
- const shut = 'Training style, focus &amp; context &nbsp;<span style="opacity:.55;font-weight:600">CrossFit, Hyrox, calisthenics…</span>';
+ const shut = 'Focus muscles &amp; today&rsquo;s context &nbsp;<span style="opacity:.55;font-weight:600">optional — sharpens the plan</span>';
  toggle.innerHTML = shut;
  toggle.onclick = function () {
    const isOpen = wrap.style.display !== 'none';
@@ -2149,9 +2163,14 @@ async function captureEmail(skip) {
    // hands you their data: without the link you never get a token.
    if (!authToken()) { try { await requestSignInLink(email); } catch(e) {} }
    // Load any existing data from server for returning users
+   // A saved row is not the same as a saved plan. This used to return true for
+   // anyone who had ever entered their email, so a returning user with an empty
+   // row was told 'welcome back', dropped on a blank Plan tab, and the generate
+   // call never fired — they could never build a plan at all.
    const found = await loadFromServer(email);
-   if (found) {
-     toast('Welcome back — your plans are here');
+   const hasRealPlan = !!(state.plan && Array.isArray(state.plan.days) && state.plan.days.length);
+   if (found && hasRealPlan) {
+     toast('Welcome back — your plan is here');
      const overlay = document.getElementById('email-capture');
      if (overlay) overlay.style.display = 'none';
      showTab('plan');
