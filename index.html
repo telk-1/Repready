@@ -47,7 +47,7 @@
 <div id="header"><div id="logo"><div id="logo-mark" style="background:none;overflow:hidden"><img src="/icon-192.png" style="width:30px;height:30px;border-radius:8px;display:block"></div><div id="logo-text">PTrain</div></div><div id="header-right"><span id="plan-badge">Starter</span><button id="upgrade-btn" onclick="showTab('pricing')">Upgrade</button></div></div>
 
 <div id="main">
-<div id="tab-home" class="tab active"><div class="hero"><div style="position:relative"><div class="hero-badge">PTrain</div><h1>Your personal trainer.<br>In your pocket.<br><span>Ready in 90 seconds.</span></h1><p style="color:#8b8b95;font-size:14px;margin-bottom:24px">A full week's training and nutrition plan — completely free, no card needed.</p><div class="hero-btns"><button class="hero-btn-main" onclick="showTab('generate')">Build My Programme</button><button class="hero-btn-sec" id="view-plan-btn" onclick="showTab('plan')" style="display:none">View Plan</button></div><p style="color:#f5f5f0;font-size:12px;font-weight:600;margin-top:14px;letter-spacing:0.03em">Real PT expertise, built in.</p></div></div><div class="stat-grid"><div class="stat-card"><div class="stat-val" id="stat-used" style="color:var(--ember)">0/1</div><div class="stat-lbl">Plans used</div></div><div class="stat-card"><div class="stat-val" id="stat-sessions" style="color:var(--success)">0</div><div class="stat-lbl">Sessions logged</div></div><div class="stat-card" onclick="showTab('history')" style="cursor:pointer"><div class="stat-val" id="stat-streak" style="color:#f59e0b">0🔥</div><div class="stat-lbl">Day streak</div></div></div>
+<div id="tab-home" class="tab active"><div class="hero"><div style="position:relative"><div class="hero-badge">PTrain</div><h1>Your personal trainer.<br>In your pocket.<br><span>Ready in 90 seconds.</span></h1><p style="color:#8b8b95;font-size:14px;margin-bottom:24px">A full four-week training and nutrition plan — completely free, no card needed.</p><div class="hero-btns"><button class="hero-btn-main" onclick="showTab('generate')">Build My Programme</button><button class="hero-btn-sec" id="view-plan-btn" onclick="showTab('plan')" style="display:none">View Plan</button></div><p style="color:#f5f5f0;font-size:12px;font-weight:600;margin-top:14px;letter-spacing:0.03em">Real PT expertise, built in.</p></div></div><div class="stat-grid"><div class="stat-card"><div class="stat-val" id="stat-used" style="color:var(--ember)">0/1</div><div class="stat-lbl">Plans used</div></div><div class="stat-card"><div class="stat-val" id="stat-sessions" style="color:var(--success)">0</div><div class="stat-lbl">Sessions logged</div></div><div class="stat-card" onclick="showTab('history')" style="cursor:pointer"><div class="stat-val" id="stat-streak" style="color:#f59e0b">0🔥</div><div class="stat-lbl">Day streak</div></div></div>
 <div id="install-banner" style="display:none;position:relative;background:linear-gradient(135deg,rgba(255,90,31,.22),rgba(255,90,31,.05) 60%);border:1.5px solid rgba(255,90,31,.5);border-radius:20px;padding:20px;margin-bottom:16px;overflow:hidden;cursor:pointer;box-shadow:0 10px 32px rgba(255,90,31,.18)" onclick="showInstallSteps()">
 <div style="position:absolute;top:-40px;right:-40px;width:140px;height:140px;background:radial-gradient(circle,rgba(255,90,31,.35),transparent 70%);pointer-events:none"></div>
 <div style="display:flex;align-items:center;gap:14px;position:relative">
@@ -1070,8 +1070,9 @@ function renderPlan() {
  <div class="plan-header"><div class="plan-header-top"><div><div class="plan-goal-badge">${p.formSnapshot?.goal || ''}</div><div style="color:#8b8b95;font-size:11px;font-weight:700;margin-bottom:8px;letter-spacing:0.02em">Built for: ${p.formSnapshot?.goal || ''} · ${p.formSnapshot?.days || '?'} days/week · ${p.formSnapshot?.equipment || ''} · ${p.formSnapshot?.level || ''}</div><div class="plan-title">${p.planName}</div><div class="plan-overview">${p.overview}</div></div><div style="display:flex;flex-direction:column;gap:6px"><button class="plan-export-btn" onclick="exportPlan()">⬇ Export</button><button class="plan-export-btn" onclick="sharePlanCard()" style="border-color:rgba(255,90,31,.35);color:#ff8a4f"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Share</button></div></div><div class="plan-stats"><div class="plan-stat"><div class="plan-stat-val">${p.formSnapshot?.days || '?'}</div><div class="plan-stat-lbl">Days/week</div></div><div class="plan-stat"><div class="plan-stat-val">${p.weeklyVolume || '—'}</div><div class="plan-stat-lbl">Weekly sets</div></div><div class="plan-stat"><div class="plan-stat-val">${p.estimatedCalories || '—'}</div><div class="plan-stat-lbl">Cal/session</div></div></div></div>
  <div class="section-hdr">Your Weekly Schedule</div>
  ${(p.days||[]).map((d,i) => renderDayCard(d, i, p.id)).join('')}
- ${p.nutritionPlan ? `<div class="card" style="margin-top:16px"><div class="card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px"><path d="M3 11h18M5 11a7 7 0 0 0 14 0"/><path d="M12 11V6c2-.5 3-2 3-3-2.5 0-4 1-4.5 3"/></svg>Your Daily Nutrition Plan</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px"><div style="background:var(--surface-2);border-radius:10px;padding:10px;text-align:center"><div style="color:#ff5a1f;font-weight:900;font-size:16px">${p.nutritionPlan.protein}g</div><div style="color:#8b8b95;font-size:10px;font-weight:700">Protein</div></div><div style="background:var(--surface-2);border-radius:10px;padding:10px;text-align:center"><div style="color:#3b82f6;font-weight:900;font-size:16px">${p.nutritionPlan.carbs}g</div><div style="color:#8b8b95;font-size:10px;font-weight:700">Carbs</div></div><div style="background:var(--surface-2);border-radius:10px;padding:10px;text-align:center"><div style="color:#a855f7;font-weight:900;font-size:16px">${p.nutritionPlan.fats}g</div><div style="color:#8b8b95;font-size:10px;font-weight:700">Fats</div></div></div><div style="color:#8b8b95;font-size:11px;font-weight:700;text-align:center;margin-bottom:12px">${p.nutritionPlan.dailyCalories} kcal/day</div>${(p.nutritionPlan.meals||[]).map(m=>`<div style="border-top:1px solid rgba(245,245,240,.06);padding-top:11px;margin-top:11px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="color:#f5f5f0;font-weight:700;font-size:13px">${m.meal}</span><span style="color:#ff8a4f;font-size:12px;font-weight:700">${m.calories} kcal</span></div><div style="color:#8b8b95;font-size:12px;line-height:1.5">${m.foods}</div></div>`).join('')}</div>` : ''}
+ ${p.nutritionPlan ? `<div class="card" style="margin-top:16px"><div class="card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:7px"><path d="M3 11h18M5 11a7 7 0 0 0 14 0"/><path d="M12 11V6c2-.5 3-2 3-3-2.5 0-4 1-4.5 3"/></svg>Your Daily Nutrition Plan</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px"><div style="background:var(--surface-2);border-radius:10px;padding:10px;text-align:center"><div style="color:#ff5a1f;font-weight:900;font-size:16px">${(adaptedNutrition()||{}).protein || p.nutritionPlan.protein}g</div><div style="color:#8b8b95;font-size:10px;font-weight:700">Protein</div></div><div style="background:var(--surface-2);border-radius:10px;padding:10px;text-align:center"><div style="color:#3b82f6;font-weight:900;font-size:16px">${p.nutritionPlan.carbs}g</div><div style="color:#8b8b95;font-size:10px;font-weight:700">Carbs</div></div><div style="background:var(--surface-2);border-radius:10px;padding:10px;text-align:center"><div style="color:#a855f7;font-weight:900;font-size:16px">${p.nutritionPlan.fats}g</div><div style="color:#8b8b95;font-size:10px;font-weight:700">Fats</div></div></div><div style="color:#8b8b95;font-size:11px;font-weight:700;text-align:center;margin-bottom:12px">${(adaptedNutrition()||{}).calories || p.nutritionPlan.dailyCalories} kcal/day</div>${(function(){const a=adaptedNutrition();if(!a)return '';return `<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.22);border-radius:11px;padding:10px 12px;margin-bottom:12px;color:#93c5fd;font-size:11.5px;line-height:1.5">Updated for your current weight. You\'ve ${a.down?'lost':'gained'} ${a.delta}kg since this plan was written, so your targets have moved with you.</div>`;})()}${(p.nutritionPlan.meals||[]).map(m=>`<div style="border-top:1px solid rgba(245,245,240,.06);padding-top:11px;margin-top:11px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="color:#f5f5f0;font-weight:700;font-size:13px">${m.meal}</span><span style="color:#ff8a4f;font-size:12px;font-weight:700">${m.calories} kcal</span></div><div style="color:#8b8b95;font-size:12px;line-height:1.5">${m.foods}</div></div>`).join('')}</div>` : ''}
  ${p.nutritionTips?.length ? `<div class="info-box green" style="margin-top:16px"><div class="info-box-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M3 11h18M5 11a7 7 0 0 0 14 0"/><path d="M12 11V6c2-.5 3-2 3-3-2.5 0-4 1-4.5 3"/></svg>Nutrition</div><ul class="tip-list">${p.nutritionTips.map(t=>`<li><span>•</span>${t}</li>`).join('')}</ul></div>` : ''}
+ ${(function(){const d=weekDirective();if(!d)return '';const bs=blockStatus();const w=bs?bs.week:1;const deload=weekLoadFactor()<1;return `<div style="margin-top:12px;background:${deload?'rgba(245,158,11,.08)':'rgba(255,90,31,.08)'};border:1px solid ${deload?'rgba(245,158,11,.28)':'rgba(255,90,31,.25)'};border-radius:15px;padding:14px 16px"><div style="color:${deload?'#f59e0b':'#ff8a4f'};font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Week ${w} of 4 — ${d.focus||''}</div><div style="color:#f5f5f0;font-size:13.5px;line-height:1.5">${d.intent||''}</div></div>`;})()}
  ${p.progressionScheme ? `<div class="info-box blue" style="margin-top:12px"><div class="info-box-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M3 17 9 11l4 4 8-8"/><path d="M15 7h6v6"/></svg>How to Progress</div><p>${p.progressionScheme}</p></div>` : ''}
  ${p.deloadRecommendation ? `<div class="info-box orange" style="margin-top:12px"><div class="info-box-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>Deload Week</div><p>${p.deloadRecommendation}</p></div>` : ''}
  <button class="btn-secondary" style="margin-top:16px" onclick="showTab('generate')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>Generate New Plan</button>`;
@@ -1099,7 +1100,7 @@ function renderDayCard(d, i, planId) {
      lastBlock = ex.block;
    }
    const exKey = j+'_'+ex.name;
-   const exLogs = logs[exKey] || Array.from({length:parseInt(ex.sets)||3},()=>({done:false,weight:ex.weight||''}));
+   const exLogs = logs[exKey] || Array.from({length:weekSets(ex.sets)},()=>({done:false,weight:ex.weight||''}));
    const allDone = exLogs.length>0 && exLogs.every(s=>s.done);
    const cleanWeight = (w) => {
      if (!w) return '';
@@ -1111,7 +1112,7 @@ function renderDayCard(d, i, planId) {
    const sets = exLogs.map((s,si)=>`
      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
        <div style="color:var(--text-faint);font-size:11px;font-weight:700;width:38px;flex-shrink:0">Set ${si+1}</div>
-       <input type="text" inputmode="decimal" value="${cleanWeight(s.weight||getSuggestedWeight(ex.name,ex.weight,ex.reps)||ex.weight||'')}" placeholder="${(getLastLift(ex.name) && cleanWeight(getLastLift(ex.name).weight)) ? 'Last: '+cleanWeight(getLastLift(ex.name).weight) : 'kg'}"
+       <input type="text" inputmode="decimal" value="${cleanWeight(s.weight||weekAdjustedWeight(ex.name,ex.weight,ex.reps)||ex.weight||'')}" placeholder="${(getLastLift(ex.name) && cleanWeight(getLastLift(ex.name).weight)) ? 'Last: '+cleanWeight(getLastLift(ex.name).weight) : 'kg'}"
          style="background:${s.done?'rgba(34,197,94,.1)':'var(--surface)'};border:1px solid ${s.done?'rgba(34,197,94,.3)':'var(--border)'};border-radius:8px;padding:9px 10px;color:var(--text);-webkit-text-fill-color:var(--text);font-size:14px;font-weight:700;width:82px;text-align:center;flex-shrink:0"
          onchange="updateSetWeight('${key}','${exKey}',${si},this.value,${i})">
        <div style="color:var(--text-faint);font-size:12px;font-weight:600;flex-shrink:0;min-width:36px">${ex.reps}</div>
@@ -1127,7 +1128,7 @@ function renderDayCard(d, i, planId) {
          ${ex.notes?`<div class="ex-note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.7 1 1.5 1 2.5h6c0-1 .2-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg> ${ex.notes}</div>`:''}
          <div style="display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap">
            <span style="color:var(--text-faint);font-size:11px">${ex.reps} reps · rest ${ex.rest}</span>
-           ${getProgressionBadge(ex.name, getSuggestedWeight(ex.name,ex.weight,ex.reps))}
+           ${getProgressionBadge(ex.name, weekAdjustedWeight(ex.name,ex.weight,ex.reps))}
            <button onclick="event.stopPropagation();openSwap(${i},${j})" style="background:none;border:none;color:var(--text-faint);font-size:11px;font-weight:700;padding:0;text-decoration:underline;text-underline-offset:2px">Swap</button>
            ${ex.swappedFrom?`<span style="color:var(--text-faint);font-size:10.5px;font-style:italic">was ${ex.swappedFrom}</span>`:''}
          </div>
@@ -2503,11 +2504,107 @@ function best1RM(exerciseName) {
 // lateral raise is a 31% jump and the set fails. So work out the smallest real
 // increment for the kit, and only add it once the rep target has actually been
 // met — reps are earned first, then the weight.
-function smallestIncrement(exerciseName) {
+// ADAPTIVE NUTRITION
+// Targets were fixed at the moment the plan was written. Someone on a fat-loss
+// goal could drop five kilos and still be eating for the heavier version of
+// themselves. The weight log was already there and nothing read it.
+// Mifflin-St Jeor, with the activity multiplier reverse-engineered from the
+// original targets so we stay true to what the plan actually prescribed.
+function mifflinBMR(kg, cm, age, sex) {
+ if (!kg || !cm || !age || isNaN(kg) || isNaN(cm) || isNaN(age)) return null;
+ const base = 10 * kg + 6.25 * cm - 5 * age;
+ return sex === 'Female' ? base - 161 : base + 5;
+}
+
+// Null unless logged bodyweight has moved enough to matter (2kg).
+function adaptedNutrition() {
+ const p = state.plan;
+ if (!p || !p.nutritionPlan || !p.nutritionPlan.dailyCalories) return null;
+ const n = p.nutritionPlan;
+ const snap = p.formSnapshot || {};
+ const startKg = parseFloat(snap.weight);
+ const latest = (state.weightLog || [])[0];
+ const nowKg = latest ? parseFloat(latest.weight) : NaN;
+ if (!startKg || !nowKg || isNaN(startKg) || isNaN(nowKg)) return null;
+ if (Math.abs(nowKg - startKg) < 2) return null;
+ const cm = parseFloat(snap.height), age = parseFloat(snap.age);
+ const b0 = mifflinBMR(startKg, cm, age, snap.sex);
+ const b1 = mifflinBMR(nowKg, cm, age, snap.sex);
+ if (!b0 || !b1) return null;
+ const multiplier = n.dailyCalories / b0;          // what the plan implied
+ if (!(multiplier > 0.8 && multiplier < 3)) return null;   // sanity
+ const calories = Math.round((b1 * multiplier) / 10) * 10;
+ const protein = n.protein ? Math.round((n.protein / startKg) * nowKg) : n.protein;
+ return { calories: calories, protein: protein, from: startKg, to: nowKg,
+          down: nowKg < startKg, delta: Math.abs(Math.round((nowKg - startKg) * 10) / 10) };
+}
+
+// FOUR-WEEK BLOCK
+// The plan is one week of sessions that runs for four. Until now every week
+// was identical, so weeks two, three and four were the same workout again --
+// which is the thing every serious tracker does and this did not. The
+// generator now returns a weekPlan describing how each week differs, and the
+// app serves the right one. Plans generated before this exist without a
+// weekPlan and fall through to the old behaviour unchanged.
+function weekDirective() {
+ const wp = state.plan && state.plan.weekPlan;
+ if (!Array.isArray(wp) || !wp.length) return null;
+ const bs = blockStatus();
+ const w = bs ? bs.week : 1;
+ return wp.find(function (x) { return Number(x.week) === w; }) || wp[Math.min(w, wp.length) - 1] || null;
+}
+
+// Sets for this week. Week three usually adds one, the deload takes one away.
+function weekSets(baseSets) {
+ const base = parseInt(baseSets) || 3;
+ const d = weekDirective();
+ const adj = d && isFinite(Number(d.setAdjust)) ? Number(d.setAdjust) : 0;
+ return Math.max(1, Math.min(8, base + adj));
+}
+
+// Deload weeks come down in load. 1 means no change.
+function weekLoadFactor() {
+ const d = weekDirective();
+ const f = d ? Number(d.loadFactor) : NaN;
+ return f > 0.4 && f <= 1 ? f : 1;
+}
+
+// The suggested weight with this week's load factor applied, rounded to an
+// increment that exists on the rack rather than a number nobody can load.
+function weekAdjustedWeight(exerciseName, plannedWeight, repTarget) {
+ const base = getSuggestedWeight(exerciseName, plannedWeight, repTarget);
+ const f = weekLoadFactor();
+ if (f === 1) return base;
+ const kg = parseFloat(base);
+ if (!kg || isNaN(kg)) return base;
+ const step = smallestIncrement(exerciseName);
+ const scaled = Math.max(step, Math.round((kg * f) / step) * step);
+ return scaled.toFixed(2).replace(/\.?0+$/, '') + 'kg';
+}
+
+// The backend prompt sets the step by training level (Beginner 1.25kg,
+// otherwise 2.5kg) and the gym sets it by equipment. Both are right, so use
+// both: level picks the base, equipment picks what actually exists on the rack.
+function smallestIncrement(exerciseName, level) {
  const n = (exerciseName || '').toLowerCase();
+ const lvl = level || (state.form && state.form.level) || 'Intermediate';
+ if (/sled|prowler/.test(n)) return 5;                       // plates on a sled
+ if (/kettlebell|\bkb\b/.test(n)) return 4;                  // kettlebells step in 4kg
  if (/cable|pulldown|pushdown|pec ?deck|leg press|leg curl|leg extension|seated row|machine|stack/.test(n)) return 5;
- if (/dumbbell|\bdb\b|goblet|lateral raise|hammer curl|concentration|preacher/.test(n)) return 2;
- return 2.5;   // barbell, smith, trap bar, loaded carries
+ if (/dumbbell|\bdb\b|goblet|lateral raise|hammer curl|concentration|preacher|carry|wall ball|med ?ball/.test(n)) return 2;
+ return lvl === 'Beginner' ? 1.25 : 2.5;   // barbell, smith, trap bar
+}
+
+// Conditioning is prescribed in seconds, minutes, metres or rounds, not reps.
+// Reading "40 sec" as a 40-rep target meant loaded carries, sleds and wall
+// balls could never progress, which is most of Hyrox, CrossFit and HIIT.
+function isTimeOrDistance(reps) {
+ const r = String(reps == null ? '' : reps).trim();
+ if (!r) return false;
+ if (/\d\s*(s|sec|secs|seconds?|m|min|mins|minutes?|km|metres?|meters?|cal|cals|calories)\b/i.test(r)) return true;
+ if (/\b(amrap|emom|max|rounds?|for time|tabata)\b/i.test(r)) return true;
+ if (/\d+:\d{2}/.test(r)) return true;   // 1:30
+ return false;
 }
 
 // "8-10" -> 10, "10" -> 10, "AMRAP" -> null
@@ -2522,17 +2619,26 @@ function getSuggestedWeight(exerciseName, plannedWeight, repTarget) {
  const lastKg = parseFloat(last.weight);
  if (!lastKg) return plannedWeight;
 
- // Double progression: hold the weight until the top of the rep range is reached.
- const top = topOfRepRange(repTarget);
- const lastReps = parseFloat(last.reps);
- if (top && lastReps && lastReps < top) return lastKg + 'kg';
+ const level = (state.form && state.form.level) || 'Intermediate';
+ const timed = isTimeOrDistance(repTarget);
 
- // Even then, only move if one real increment is a sensible jump. On light
- // dumbbells the smallest plate is still a big percentage, so keep building reps.
- const step = smallestIncrement(exerciseName);
- if (step / lastKg > 0.10) return lastKg + 'kg';
+ // Double progression: hold the weight until the top of the rep range is
+ // reached. Timed and distance work has no rep target to top out, so it is
+ // exempt — it progresses on load.
+ if (!timed) {
+   const top = topOfRepRange(repTarget);
+   const lastReps = parseFloat(last.reps);
+   if (top && lastReps && lastReps < top) return lastKg + 'kg';
+ }
 
- return (lastKg + step).toFixed(1).replace('.0', '') + 'kg';
+ // Only move if one real increment is a sensible jump. A novice adding 2.5kg
+ // to an empty bar is 12.5% and completely correct, so the ceiling is looser
+ // for beginners — they are the ones who should be progressing fastest.
+ const step = smallestIncrement(exerciseName, level);
+ const ceiling = level === 'Beginner' ? 0.20 : 0.10;
+ if (step / lastKg > ceiling) return lastKg + 'kg';
+
+ return (lastKg + step).toFixed(2).replace(/\.?0+$/, '') + 'kg';
 }
 
 function getProgressionBadge(exerciseName, currentWeight) {

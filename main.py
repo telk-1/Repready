@@ -640,6 +640,13 @@ def home():
         with open(os.path.join(BASE_DIR, 'index.html'), 'r', encoding='utf-8') as f:
             html = f.read()
 
+        # The version stamp exists so a deploy can be confirmed at a glance.
+        # It was a hard-coded 'v10' and had not moved in months of releases,
+        # which made the one tool for checking a release actively misleading.
+        _rev = (os.environ.get('RENDER_GIT_COMMIT')
+                or os.environ.get('PTRAIN_RELEASE') or 'dev')[:7]
+        html = html.replace('>v10</span>', '>' + _rev + '</span>')
+
         r = requests.get(
             # select only what the schema uses. This previously selected every
             # column, which pulled reviewers' email addresses into the page
@@ -2433,14 +2440,29 @@ def build_prompt(profile):
                     try:
                         last_kg = float(raw_weight) if raw_weight else None
                         if last_kg:
+                            # Level sets the base step, equipment sets what can
+                            # actually be loaded. A flat step meant a lateral
+                            # raise was told to jump the same as a back squat.
                             level = p.get('level', 'Intermediate')
-                            if level in ['Beginner']:
-                                step = 1.25
-                            elif level in ['Intermediate']:
-                                step = 2.5
+                            ex_l = str(exercise).lower()
+                            if re.search(r'sled|prowler', ex_l):
+                                step = 5.0
+                            elif re.search(r'kettlebell|\bkb\b', ex_l):
+                                step = 4.0
+                            elif re.search(r'cable|pulldown|pushdown|pec ?deck|leg press|leg curl|leg extension|seated row|machine|stack', ex_l):
+                                step = 5.0
+                            elif re.search(r'dumbbell|\bdb\b|goblet|lateral raise|hammer curl|concentration|preacher|carry|wall ball|med ?ball', ex_l):
+                                step = 2.0
                             else:
-                                step = 2.5
-                            suggested = round(last_kg + step, 2)
+                                step = 1.25 if level == 'Beginner' else 2.5
+                            # Never propose a jump that would blow up a light
+                            # lift; beginners get more room because fast linear
+                            # progression is correct for them.
+                            ceiling = 0.20 if level == 'Beginner' else 0.10
+                            if step / last_kg > ceiling:
+                                suggested = last_kg
+                            else:
+                                suggested = round(last_kg + step, 2)
                         else:
                             suggested = None
                     except (ValueError, TypeError):
@@ -2475,6 +2497,7 @@ RULES BY GOAL/LEVEL/STYLE (apply strictly):
 - CIRCUIT/WOD STRUCTURE RULE (applies whenever ANY part of the session uses circuits, rounds, AMRAPs, EMOMs, HIIT finishers, or interval formats — this includes CrossFit, Hyrox, HIIT/Circuit sessions, Weight loss HIIT finishers, Endurance circuits, Sport Specific conditioning drills, and any other style where round-based training appears): the exercises array must contain DIFFERENT, VARIED movements in the actual circuit order — never the same exercise name as consecutive entries. A real WOD like "5 rounds of: row 250m, 15 wall balls, 10 burpees" is THREE distinct exercise entries (Row, Wall Balls, Burpees), each with sets:5 representing the round count — not five separate "Row" entries. Put the round/format structure ("5 rounds for time", "AMRAP 20 min — cycle through in order", "EMOM 12: odd min movement A, even min movement B") in that exercise's notes field. A circuit-based day or finisher should typically include 3-8 genuinely different movements, matching how these formats are actually programmed. (Exception: Flexibility/Mobility work — holding the same stretch for multiple timed sets is correct practice, not repetition.)
 - SESSION BLOCK STRUCTURE: every exercise must have a "block" field — one of "Strength", "Cardio", or "Mobility". A real session isn't one undifferentiated list — it has phases. Order exercises within the exercises array so all "Strength" entries come first, then "Cardio" (conditioning, intervals, circuit/WOD work), then "Mobility" (stretches, activation, corrective work) — grouped together by block, not interleaved randomly. Not every day needs all three blocks (a pure strength day can be 100% "Strength"), but when a day genuinely includes more than one type of work (e.g. lifting + a conditioning finisher), tag each exercise correctly so the phases are clearly separated, not blended into one list.
 - FIRST PLAN (no lift history provided): prescribe CONSERVATIVE starting weights scaled to bodyweight and level. Put RPE guidance ("adjust so the last 2 reps feel hard, RPE 7-8") ONLY in the notes field.
+- FOUR-WEEK BLOCK RULE: the days array is ONE week of sessions, and that week runs for four weeks. The "weekPlan" array says how each of those four weeks differs, so the user is not simply repeating an identical workout four times. Week 1 establishes working weights. Weeks 2 and 3 build — more reps within the range, then an extra set on the main lifts. Week 4 is a deload: fewer sets and around 20% off the load, so they arrive at the next block recovered rather than ground down. "setAdjust" is added to every exercise's set count that week (use -1, 0 or 1). "loadFactor" multiplies the weights that week (1 for normal weeks, about 0.8 for the deload). "intent" is one sentence written to the user explaining what that week is for, in a coach's voice. Adapt the shape to the training style: a strength block builds intensity while a conditioning or Hyrox block builds work capacity or pace, but every style gets a genuine four-week arc ending in a lighter week.
 - CRITICAL FORMAT RULE: the "weight" field must be ONLY a number with kg (e.g. "40kg") or "BW" for bodyweight moves. NEVER words, sentences, ranges or explanations in the weight field — those belong in notes. A weight field containing text breaks the app.
 - WITH lift history: use their actual numbers plus the progression step. Real data beats estimates.
 - Diet preference is a HARD constraint: Keto = very low carb meals only, Vegan = no animal products, etc. Never include foods that violate the stated preference.
@@ -2502,7 +2525,7 @@ Sleep: {p.get('sleep','7')}hrs | Stress: {p.get('stress','Moderate')} | Diet: {p
 Injuries: {p.get('inj','None')} | Allergies: {p.get('allergies','None')}
 {progression_context}
 CRITICAL: Respond ONLY with valid complete JSON. Be concise — short exercise notes, brief meal descriptions. No markdown, no backticks, no trailing commas:
-{{"planName":"string","coachMessage":"1 sentence to {p.get('name','you')} on why this plan is their next step","overview":"2 sentences","weeklyVolume":0,"estimatedCalories":0,"days":[{{"day":"Day 1 - Focus","focus":"string","warmup":"string","exercises":[{{"name":"string","block":"Strength","sets":3,"reps":"8-10","weight":"70kg","rest":"90s","notes":"brief why"}}],"cooldown":"string"}}],"nutritionPlan":{{"dailyCalories":0,"protein":0,"carbs":0,"fats":0,"meals":[{{"meal":"Breakfast","foods":"brief","calories":0}},{{"meal":"Lunch","foods":"brief","calories":0}},{{"meal":"Dinner","foods":"brief","calories":0}},{{"meal":"Snacks","foods":"brief","calories":0}}]}},"nutritionTips":["tip1","tip2","tip3"],"progressionScheme":"brief","deloadRecommendation":"brief"}}"""
+{{"planName":"string","coachMessage":"1 sentence to {p.get('name','you')} on why this plan is their next step","overview":"2 sentences","weeklyVolume":0,"estimatedCalories":0,"days":[{{"day":"Day 1 - Focus","focus":"string","warmup":"string","exercises":[{{"name":"string","block":"Strength","sets":3,"reps":"8-10","weight":"70kg","rest":"90s","notes":"brief why"}}],"cooldown":"string"}}],"nutritionPlan":{{"dailyCalories":0,"protein":0,"carbs":0,"fats":0,"meals":[{{"meal":"Breakfast","foods":"brief","calories":0}},{{"meal":"Lunch","foods":"brief","calories":0}},{{"meal":"Dinner","foods":"brief","calories":0}},{{"meal":"Snacks","foods":"brief","calories":0}}]}},"nutritionTips":["tip1","tip2","tip3"],"progressionScheme":"brief","deloadRecommendation":"brief","weekPlan":[{{"week":1,"focus":"2-3 words","intent":"1 sentence to the user","setAdjust":0,"loadFactor":1}},{{"week":2,"focus":"2-3 words","intent":"1 sentence","setAdjust":0,"loadFactor":1}},{{"week":3,"focus":"2-3 words","intent":"1 sentence","setAdjust":1,"loadFactor":1}},{{"week":4,"focus":"Deload","intent":"1 sentence","setAdjust":-1,"loadFactor":0.8}}]}}"""
 
 
 @app.route('/api/generate', methods=['POST', 'OPTIONS'])
