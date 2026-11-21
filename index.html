@@ -67,7 +67,7 @@
 <div id="pro-welcome" style="display:none;background:linear-gradient(120deg,rgba(255,90,31,.15),rgba(168,85,247,.08));border:1px solid rgba(255,90,31,.3);border-radius:17px;padding:13px 16px;margin-bottom:12px"><div style="display:flex;align-items:center;gap:12px"><div><div id="pro-welcome-title" style="color:#f5f5f0;font-weight:900;font-size:15px">Pro Active</div><div id="pro-welcome-sub" style="color:#8b8b95;font-size:12px;margin-top:2px">10 plans a month, unlocked</div></div></div><div style="margin-top:9px"><span id="manage-billing" onclick="openBillingPortal()" style="color:#8b8b95;font-size:11.5px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer">Manage billing or cancel</span></div></div>
 <div id="streak-warning" style="display:none;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:13px;padding:13px 16px;margin-bottom:14px;align-items:center;gap:10px"><span style="font-size:20px">⚠️</span><div style="flex:1"><div style="color:#f59e0b;font-weight:800;font-size:13px">Don't break your streak!</div><div style="color:#8b8b95;font-size:12px">You haven't logged a session today.</div></div><button onclick="showTab('plan')" style="margin-left:auto;background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.3);color:#f59e0b;font-weight:800;font-size:11px;padding:7px 12px;border-radius:9px;white-space:nowrap">Train →</button></div><div id="today-workout-btn" style="display:none;background:rgba(255,90,31,.08);border:1px solid rgba(255,90,31,.22);border-radius:15px;padding:15px 17px;margin-bottom:14px;cursor:pointer" onclick="showTodaysWorkout()"><div style="color:#ff8a4f;font-size:11px;font-weight:800;text-transform:uppercase;margin-bottom:5px">Today's workout</div><div id="today-workout-name" style="color:#f5f5f0;font-weight:800;font-size:15px">Tap to view →</div><div id="today-workout-detail" style="color:#8b8b95;font-size:12px;margin-top:3px"></div></div><div id="recent-activity" style="display:none"><div class="section-hdr">Recent activity</div><div id="activity-list"></div></div><div class="upsell" onclick="showTab('pricing')"><div class="upsell-tag">PRO — £9.99/month</div><div class="upsell-title">Every four weeks, rebuilt around you</div><div class="upsell-sub">Plans that evolve with every session. Nutrition built to reach your goal. Coach on call 24/7 →</div></div><div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:17px;padding:18px;margin-top:12px;cursor:pointer" onclick="sharePTrain()"><div style="display:flex;align-items:center;gap:12px"><div style="width:32px;display:flex;align-items:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13"/><path d="M12 8s-4-6.5-6-4 6 4 6 4M12 8s4-6.5 6-4-6 4-6 4"/></svg></div><div><div style="color:#4ade80;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Give a friend a free plan</div><div style="color:#f5f5f0;font-weight:800;font-size:14px;margin-bottom:3px">Share PTrain — get another free plan yourself</div><div id="referral-sub" style="color:#ff8a4f;font-size:12px;font-weight:700">🔥 Invite 1 friend = +1 free plan</div></div></div></div><div class="card" style="margin-top:16px"><div class="card-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px;margin-right:5px"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.7 1 1.5 1 2.5h6c0-1 .2-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg>Today's tip</div><ul class="tip-list" id="tips-list"></ul></div></div>
 
-<div id="tab-generate" class="tab"><h2 style="color:var(--text);font-weight:900;font-size:23px;margin-bottom:21px">Build plan</h2><div id="limit-warning" style="display:none;background:rgba(255,90,31,.08);border:1px solid rgba(255,90,31,.25);border-radius:15px;padding:18px;margin-bottom:16px"><div style="color:#f5f5f0;font-weight:800;font-size:15px;margin-bottom:6px">Your four-week block is done.</div><div style="color:#8b8b95;font-size:13px;line-height:1.55;margin-bottom:14px">Your plan was written to run four weeks. Pro builds the next one from what you actually lifted — and keeps building them.</div><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><span style="color:#ff8a4f;font-size:13px;font-weight:700">£9.99/month · Cancel anytime</span><button onclick="showTab('pricing')" style="background:var(--ember);border:none;color:#fff;font-weight:800;font-size:13px;padding:10px 20px;border-radius:10px;box-shadow:0 4px 16px rgba(255,90,31,.4)">Upgrade to Pro →</button></div></div><div class="card"><div class="card-title">About you</div><div style="text-align:right;margin-bottom:13px"><span id="unit-toggle" onclick="toggleUnits()" style="color:var(--text-faint);font-size:11.5px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer">Switch to kg/cm</span></div><div class="input-grid"><div><label class="input-label">Name</label><input class="input" id="f-name" placeholder="Your name" autocomplete="name"></div><div><label class="input-label">Age</label><input class="input" id="f-age" type="number" inputmode="numeric" placeholder="e.g. 28"></div><div><label class="input-label">Sex</label><select class="input" id="f-sex"><option value="">Prefer not to say</option><option value="Male">Male</option><option value="Female">Female</option></select></div><div id="weight-st-row"><label class="input-label">Weight (st or kg)</label><input class="input" id="f-weight-st" type="number" inputmode="numeric" placeholder="e.g. 12 st"></div><div id="weight-kg-row" style="display:none"><label class="input-label">Weight (kg)</label><input class="input" id="f-weight" type="number" inputmode="numeric" placeholder="e.g. 80"></div><div id="height-ft-row"><label class="input-label">Height (ft or cm)</label><div style="display:flex;gap:6px"><input class="input" id="f-height-ft" type="number" inputmode="numeric" placeholder="5 ft" style="flex:1"><input class="input" id="f-height-in" type="number" inputmode="numeric" placeholder="10 in" style="flex:1"></div></div><div id="height-cm-row" style="display:none"><label class="input-label">Height (cm)</label><input class="input" id="f-height" type="number" inputmode="numeric" placeholder="e.g. 178"></div><div><label class="input-label">Sleep (hrs/night)</label><input class="input" id="f-sleep" type="number" inputmode="numeric" placeholder="e.g. 7"></div><div><label class="input-label">Stress level</label><select class="input" id="f-stress"><option value="">Select...</option><option value="Low">Low</option><option value="Moderate">Moderate</option><option value="High">High</option></select></div></div></div><div class="card"><div class="card-title">Primary goal <span style="color:var(--text-faint);font-weight:600;font-size:12px">(pick up to 2)</span></div><div class="pills" id="pills-goal"></div></div><div class="card"><div class="card-title">Fitness level</div><div class="pills" id="pills-level"></div></div><div class="card"><div class="card-title">Training days: <span id="days-val" style="color:var(--ember)">4 days/week</span></div><div class="pills" id="pills-days" style="margin-bottom:17px"></div><div class="card-title">Session length: <span id="dur-val" style="color:var(--ember)">60 min</span></div><div class="pills" id="pills-dur"></div></div><div class="card"><div class="card-title">Equipment</div><div class="pills" id="pills-equip"></div></div><div class="card"><div class="card-title">Training style</div><div class="pills" id="pills-style"></div><div id="sport-input-row" style="display:none;margin-top:13px"><input class="input" id="f-sport" placeholder="What sport? (e.g. Football, Boxing, Tennis…)" autocomplete="off"></div></div><div class="card"><div class="card-title">Focus muscles (optional)</div><div class="pills" id="pills-muscles"></div></div><div class="card"><div class="card-title">Today's context</div><div style="margin-bottom:13px"><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Training vibe</div><div class="pills" id="pills-vibe"></div></div><div style="margin-bottom:13px"><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">When do you train?</div><div class="pills" id="pills-time"></div></div><div><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Diet preference</div><div class="pills" id="pills-diet"></div></div><div style="margin-top:13px"><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Appetite right now</div><div class="pills" id="pills-appetite"></div><div style="font-size:11.5px;color:var(--text-faint);margin-top:9px;line-height:1.45">If you&rsquo;re struggling to finish meals, your plan is built around getting enough in &mdash; not eating less.</div></div></div><div class="card"><div class="card-title">Injuries, allergies & notes</div><textarea class="input" id="f-injuries" rows="2" placeholder="Injuries or physical limitations…" style="margin-bottom:10px"></textarea><textarea class="input" id="f-allergies" rows="2" placeholder="Food allergies or dietary restrictions…"></textarea></div><button class="btn-primary" id="generate-btn" onclick="generatePlan()"><span id="gen-icon" style="margin-right:8px;display:inline-flex;vertical-align:-2px"></span><span id="gen-text">Build my plan</span></button><div id="generating-state" style="display:none" class="generating-overlay"><div class="gen-spinner"></div><div class="gen-status" id="gen-status-text">Building your programme…</div><div class="gen-sub">This takes 90 seconds. Keep your screen awake while your plan loads.</div></div><div id="ai-error" style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:13px;padding:15px;margin-top:15px;color:#fca5a5;font-size:14px;line-height:1.5"></div></div>
+<div id="tab-generate" class="tab"><h2 style="color:var(--text);font-weight:900;font-size:23px;margin-bottom:21px">Build plan</h2><div id="limit-warning" style="display:none;background:rgba(255,90,31,.08);border:1px solid rgba(255,90,31,.25);border-radius:15px;padding:18px;margin-bottom:16px"><div style="color:#f5f5f0;font-weight:800;font-size:15px;margin-bottom:6px">Your four-week block is done.</div><div style="color:#8b8b95;font-size:13px;line-height:1.55;margin-bottom:14px">Your plan was written to run four weeks. Pro builds the next one from what you actually lifted — and keeps building them.</div><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><span style="color:#ff8a4f;font-size:13px;font-weight:700">£9.99/month · Cancel anytime</span><button onclick="showTab('pricing')" style="background:var(--ember);border:none;color:#fff;font-weight:800;font-size:13px;padding:10px 20px;border-radius:10px;box-shadow:0 4px 16px rgba(255,90,31,.4)">Upgrade to Pro →</button></div></div><div class="card"><div class="card-title">About you</div><div style="text-align:right;margin-bottom:13px"><span id="unit-toggle" onclick="toggleUnits()" style="color:var(--text-faint);font-size:11.5px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer">Switch to kg/cm</span></div><div class="input-grid"><div><label class="input-label">Name</label><input class="input" id="f-name" placeholder="Your name" autocomplete="name"></div><div><label class="input-label">Age</label><input class="input" id="f-age" type="number" inputmode="numeric" placeholder="e.g. 28"></div><div><label class="input-label">Sex</label><select class="input" id="f-sex"><option value="">Prefer not to say</option><option value="Male">Male</option><option value="Female">Female</option></select></div><div id="weight-st-row"><label class="input-label">Weight</label><div style="display:flex;gap:6px"><input class="input" id="f-weight-st" type="number" inputmode="numeric" placeholder="12 st" style="flex:1"><input class="input" id="f-weight-stlb" type="number" inputmode="numeric" placeholder="7 lb" style="flex:1"></div></div><div id="weight-lb-row" style="display:none"><label class="input-label">Weight (lb)</label><input class="input" id="f-weight-lb" type="number" inputmode="numeric" placeholder="e.g. 175"></div><div id="weight-kg-row" style="display:none"><label class="input-label">Weight (kg)</label><input class="input" id="f-weight" type="number" inputmode="numeric" placeholder="e.g. 80"></div><div id="height-ft-row"><label class="input-label">Height</label><div style="display:flex;gap:6px"><input class="input" id="f-height-ft" type="number" inputmode="numeric" placeholder="5 ft" style="flex:1"><input class="input" id="f-height-in" type="number" inputmode="numeric" placeholder="10 in" style="flex:1"></div></div><div id="height-cm-row" style="display:none"><label class="input-label">Height (cm)</label><input class="input" id="f-height" type="number" inputmode="numeric" placeholder="e.g. 178"></div><div><label class="input-label">Sleep (hrs/night)</label><input class="input" id="f-sleep" type="number" inputmode="numeric" placeholder="e.g. 7"></div><div><label class="input-label">Stress level</label><select class="input" id="f-stress"><option value="">Select...</option><option value="Low">Low</option><option value="Moderate">Moderate</option><option value="High">High</option></select></div></div></div><div class="card"><div class="card-title">Primary goal <span style="color:var(--text-faint);font-weight:600;font-size:12px">(pick up to 2)</span></div><div class="pills" id="pills-goal"></div></div><div class="card"><div class="card-title">Fitness level</div><div class="pills" id="pills-level"></div></div><div class="card"><div class="card-title">Training days: <span id="days-val" style="color:var(--ember)">4 days/week</span></div><div class="pills" id="pills-days" style="margin-bottom:17px"></div><div class="card-title">Session length: <span id="dur-val" style="color:var(--ember)">60 min</span></div><div class="pills" id="pills-dur"></div></div><div class="card"><div class="card-title">Equipment</div><div class="pills" id="pills-equip"></div></div><div class="card"><div class="card-title">Training style</div><div class="pills" id="pills-style"></div><div id="sport-input-row" style="display:none;margin-top:13px"><input class="input" id="f-sport" placeholder="What sport? (e.g. Football, Boxing, Tennis…)" autocomplete="off"></div></div><div class="card"><div class="card-title">Focus muscles (optional)</div><div class="pills" id="pills-muscles"></div></div><div class="card"><div class="card-title">Today's context</div><div style="margin-bottom:13px"><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Training vibe</div><div class="pills" id="pills-vibe"></div></div><div style="margin-bottom:13px"><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">When do you train?</div><div class="pills" id="pills-time"></div></div><div><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Diet preference</div><div class="pills" id="pills-diet"></div></div><div style="margin-top:13px"><div style="font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Appetite right now</div><div class="pills" id="pills-appetite"></div><div style="font-size:11.5px;color:var(--text-faint);margin-top:9px;line-height:1.45">If you&rsquo;re struggling to finish meals, your plan is built around getting enough in &mdash; not eating less.</div></div></div><div class="card"><div class="card-title">Injuries, allergies & notes</div><textarea class="input" id="f-injuries" rows="2" placeholder="Injuries or physical limitations…" style="margin-bottom:10px"></textarea><textarea class="input" id="f-allergies" rows="2" placeholder="Food allergies or dietary restrictions…"></textarea></div><button class="btn-primary" id="generate-btn" onclick="generatePlan()"><span id="gen-icon" style="margin-right:8px;display:inline-flex;vertical-align:-2px"></span><span id="gen-text">Build my plan</span></button><div id="generating-state" style="display:none" class="generating-overlay"><div class="gen-spinner"></div><div class="gen-status" id="gen-status-text">Building your programme…</div><div class="gen-sub">This takes 90 seconds. Keep your screen awake while your plan loads.</div></div><div id="ai-error" style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:13px;padding:15px;margin-top:15px;color:#fca5a5;font-size:14px;line-height:1.5"></div></div>
 
 <div id="tab-plan" class="tab"><div id="plan-empty" class="empty"><div class="empty-icon" style="display:flex;justify-content:center"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#ff5a1f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/></svg></div><h2>No plan yet</h2><p>Your programme in seconds.</p><button class="empty-btn" onclick="showTab('generate')">Build my plan →</button></div><div id="coach-offer"></div><div id="block-banner"></div><div id="dayzero-ask" style="display:none"></div><div id="sharpen-offer" style="display:none"></div><div id="plan-content" style="display:none"></div></div>
 
@@ -1111,7 +1111,7 @@ function renderDayCard(d, i, planId) {
    const sets = exLogs.map((s,si)=>`
      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
        <div style="color:var(--text-faint);font-size:11px;font-weight:700;width:38px;flex-shrink:0">Set ${si+1}</div>
-       <input type="text" inputmode="decimal" value="${cleanWeight(s.weight||getSuggestedWeight(ex.name,ex.weight)||ex.weight||'')}" placeholder="${(getLastLift(ex.name) && cleanWeight(getLastLift(ex.name).weight)) ? 'Last: '+cleanWeight(getLastLift(ex.name).weight) : 'kg'}"
+       <input type="text" inputmode="decimal" value="${cleanWeight(s.weight||getSuggestedWeight(ex.name,ex.weight,ex.reps)||ex.weight||'')}" placeholder="${(getLastLift(ex.name) && cleanWeight(getLastLift(ex.name).weight)) ? 'Last: '+cleanWeight(getLastLift(ex.name).weight) : 'kg'}"
          style="background:${s.done?'rgba(34,197,94,.1)':'var(--surface)'};border:1px solid ${s.done?'rgba(34,197,94,.3)':'var(--border)'};border-radius:8px;padding:9px 10px;color:var(--text);-webkit-text-fill-color:var(--text);font-size:14px;font-weight:700;width:82px;text-align:center;flex-shrink:0"
          onchange="updateSetWeight('${key}','${exKey}',${si},this.value,${i})">
        <div style="color:var(--text-faint);font-size:12px;font-weight:600;flex-shrink:0;min-width:36px">${ex.reps}</div>
@@ -1127,7 +1127,7 @@ function renderDayCard(d, i, planId) {
          ${ex.notes?`<div class="ex-note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ff8a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.7 1 1.5 1 2.5h6c0-1 .2-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg> ${ex.notes}</div>`:''}
          <div style="display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap">
            <span style="color:var(--text-faint);font-size:11px">${ex.reps} reps · rest ${ex.rest}</span>
-           ${getProgressionBadge(ex.name, getSuggestedWeight(ex.name,ex.weight))}
+           ${getProgressionBadge(ex.name, getSuggestedWeight(ex.name,ex.weight,ex.reps))}
            <button onclick="event.stopPropagation();openSwap(${i},${j})" style="background:none;border:none;color:var(--text-faint);font-size:11px;font-weight:700;padding:0;text-decoration:underline;text-underline-offset:2px">Swap</button>
            ${ex.swappedFrom?`<span style="color:var(--text-faint);font-size:10.5px;font-style:italic">was ${ex.swappedFrom}</span>`:''}
          </div>
@@ -1545,59 +1545,121 @@ function refreshClientsNav() {
 }
 
 
+// UNITS
+// Three systems, not two. UK bodyweight is stone AND pounds — stone alone rounds
+// everyone to the nearest 6.35kg. And a US user typing pounds into a stone box
+// produced an impossible figure that the sanity guard turned into '?', so their
+// plan was built with no bodyweight at all. Both are fixed by having lb exist.
+const KG_PER_ST = 6.35029318, KG_PER_LB = 0.45359237, CM_PER_IN = 2.54;
+const UNIT_ORDER = ['uk', 'metric', 'us'];
+const UNIT_LABEL = { uk: 'st/ft', metric: 'kg/cm', us: 'lb/ft' };
+let unitSystem = 'uk';
+// Kept so any older code or saved state referring to useMetric still reads true/false correctly.
 let useMetric = false;
-function toggleUnits() {
- useMetric = !useMetric;
+
+const $v = id => { const e = document.getElementById(id); return e ? parseFloat(e.value) : NaN; };
+const $set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+
+// Whatever is currently on screen, in kg. NaN if nothing usable is entered.
+function readWeightKg() {
+ if (unitSystem === 'metric') return $v('f-weight');
+ if (unitSystem === 'us') { const lb = $v('f-weight-lb'); return lb ? lb * KG_PER_LB : NaN; }
+ const st = $v('f-weight-st'), lb = $v('f-weight-stlb') || 0;
+ if (!st && !lb) return NaN;
+ return (st || 0) * KG_PER_ST + lb * KG_PER_LB;
+}
+
+function readHeightCm() {
+ if (unitSystem === 'metric') return $v('f-height');
+ const ft = $v('f-height-ft'), inch = $v('f-height-in') || 0;
+ if (!ft && !inch) return NaN;
+ return (ft || 0) * 12 * CM_PER_IN + inch * CM_PER_IN;
+}
+
+// Write one canonical figure into every box, so switching units never loses or drifts a value.
+function writeWeightKg(kg) {
+ if (!kg || isNaN(kg)) return;
+ $set('f-weight', Math.round(kg));
+ const totalLb = kg / KG_PER_LB;
+ $set('f-weight-lb', Math.round(totalLb));
+ let st = Math.floor(totalLb / 14);
+ let lb = Math.round(totalLb - st * 14);
+ if (lb === 14) { st += 1; lb = 0; }   // rounding can push pounds to a full stone
+ $set('f-weight-st', st);
+ $set('f-weight-stlb', lb);
+}
+
+function writeHeightCm(cm) {
+ if (!cm || isNaN(cm)) return;
+ $set('f-height', Math.round(cm));
+ const totalIn = cm / CM_PER_IN;
+ let ft = Math.floor(totalIn / 12);
+ let inch = Math.round(totalIn - ft * 12);
+ if (inch === 12) { ft += 1; inch = 0; }
+ $set('f-height-ft', ft);
+ $set('f-height-in', inch);
+}
+
+function applyUnitRows() {
+ const metric = unitSystem === 'metric';
+ const show = (id, on) => { const e = document.getElementById(id); if (e) e.style.display = on ? 'block' : 'none'; };
+ show('weight-st-row', unitSystem === 'uk');
+ show('weight-lb-row', unitSystem === 'us');
+ show('weight-kg-row', metric);
+ show('height-ft-row', !metric);
+ show('height-cm-row', metric);
+ useMetric = metric;
  const btn = document.getElementById('unit-toggle');
- document.getElementById('weight-st-row').style.display = useMetric ? 'none' : 'block';
- document.getElementById('weight-kg-row').style.display = useMetric ? 'block' : 'none';
- document.getElementById('height-ft-row').style.display = useMetric ? 'none' : 'block';
- document.getElementById('height-cm-row').style.display = useMetric ? 'block' : 'none';
- if (btn) btn.textContent = useMetric ? 'Switch to st/ft' : 'Switch to kg/cm';
- // Convert existing values across when toggling
- if (useMetric) {
-   const st = parseFloat(document.getElementById('f-weight-st').value);
-   if (st) document.getElementById('f-weight').value = Math.round(st * 6.35).toString();
-   const ft = parseFloat(document.getElementById('f-height-ft').value);
-   const inch = parseFloat(document.getElementById('f-height-in').value) || 0;
-   if (ft) document.getElementById('f-height').value = Math.round((ft * 30.48) + (inch * 2.54)).toString();
- } else {
-   const kg = parseFloat(document.getElementById('f-weight').value);
-   if (kg) document.getElementById('f-weight-st').value = (kg / 6.35).toFixed(1);
-   const cm = parseFloat(document.getElementById('f-height').value);
-   if (cm) {
-     const totalInches = cm / 2.54;
-     document.getElementById('f-height-ft').value = Math.floor(totalInches / 12);
-     document.getElementById('f-height-in').value = Math.round(totalInches % 12);
-   }
+ if (btn) {
+   const next = UNIT_ORDER[(UNIT_ORDER.indexOf(unitSystem) + 1) % UNIT_ORDER.length];
+   btn.textContent = 'Switch to ' + UNIT_LABEL[next];
  }
+}
+
+// The boxes can only show whole kg, lb and inches, so reading them back loses a
+// fraction every switch and the value drifts (13st 4lb came back as 13st 3lb).
+// Keep the exact figure, and only adopt what's on screen when the user has
+// actually changed it by more than the display could round away.
+let canonicalKg = NaN, canonicalCm = NaN;
+const WEIGHT_TOL = () => unitSystem === 'metric' ? 0.5 : 0.5 * KG_PER_LB;
+const HEIGHT_TOL = () => unitSystem === 'metric' ? 0.5 : 0.5 * CM_PER_IN;
+
+function syncWeight() {
+ const read = readWeightKg();
+ if (isNaN(read)) { canonicalKg = NaN; return NaN; }
+ if (!isNaN(canonicalKg) && Math.abs(read - canonicalKg) <= WEIGHT_TOL()) return canonicalKg;
+ canonicalKg = read;
+ return canonicalKg;
+}
+
+function syncHeight() {
+ const read = readHeightCm();
+ if (isNaN(read)) { canonicalCm = NaN; return NaN; }
+ if (!isNaN(canonicalCm) && Math.abs(read - canonicalCm) <= HEIGHT_TOL()) return canonicalCm;
+ canonicalCm = read;
+ return canonicalCm;
+}
+
+function toggleUnits() {
+ const kg = syncWeight(), cm = syncHeight();   // capture before switching
+ unitSystem = UNIT_ORDER[(UNIT_ORDER.indexOf(unitSystem) + 1) % UNIT_ORDER.length];
+ applyUnitRows();
+ writeWeightKg(kg);
+ writeHeightCm(cm);
 }
 
 function getWeightKg() {
- let val;
- if (useMetric) {
-   val = parseFloat(document.getElementById('f-weight').value);
- } else {
-   const st = parseFloat(document.getElementById('f-weight-st').value);
-   val = st ? Math.round(st * 6.35) : NaN;
- }
+ const val = syncWeight();
  // Sanity guard: reject implausible human bodyweight (30-300kg covers every real case)
  if (!val || isNaN(val) || val < 30 || val > 300) return '?';
- return val.toString();
+ return Math.round(val).toString();
 }
 
 function getHeightCm() {
- let val;
- if (useMetric) {
-   val = parseFloat(document.getElementById('f-height').value);
- } else {
-   const ft = parseFloat(document.getElementById('f-height-ft').value);
-   const inch = parseFloat(document.getElementById('f-height-in').value) || 0;
-   val = ft ? Math.round((ft * 30.48) + (inch * 2.54)) : NaN;
- }
+ const val = syncHeight();
  // Sanity guard: reject implausible human height (100-250cm covers every real case)
  if (!val || isNaN(val) || val < 100 || val > 250) return '?';
- return val.toString();
+ return Math.round(val).toString();
 }
 
 function toggleAnnual() {
@@ -2380,14 +2442,41 @@ function saveLift(exerciseName, weight, reps) {
  }
 }
 
-function getSuggestedWeight(exerciseName, plannedWeight) {
+// A real gym has no universal 2.5kg jump. A barbell moves in 2.5kg (1.25 a side),
+// dumbbells in roughly 2kg, a pin stack in 5kg. Adding a flat 2.5kg to an 8kg
+// lateral raise is a 31% jump and the set fails. So work out the smallest real
+// increment for the kit, and only add it once the rep target has actually been
+// met — reps are earned first, then the weight.
+function smallestIncrement(exerciseName) {
+ const n = (exerciseName || '').toLowerCase();
+ if (/cable|pulldown|pushdown|pec ?deck|leg press|leg curl|leg extension|seated row|machine|stack/.test(n)) return 5;
+ if (/dumbbell|\bdb\b|goblet|lateral raise|hammer curl|concentration|preacher/.test(n)) return 2;
+ return 2.5;   // barbell, smith, trap bar, loaded carries
+}
+
+// "8-10" -> 10, "10" -> 10, "AMRAP" -> null
+function topOfRepRange(reps) {
+ const nums = String(reps == null ? '' : reps).match(/\d+/g);
+ return nums && nums.length ? Math.max.apply(null, nums.map(Number)) : null;
+}
+
+function getSuggestedWeight(exerciseName, plannedWeight, repTarget) {
  const last = getLastLift(exerciseName);
  if (!last || !last.weight) return plannedWeight;
  const lastKg = parseFloat(last.weight);
  if (!lastKg) return plannedWeight;
- // Suggest 2.5kg progression
- const suggested = (lastKg + 2.5).toFixed(1).replace('.0','');
- return suggested + 'kg';
+
+ // Double progression: hold the weight until the top of the rep range is reached.
+ const top = topOfRepRange(repTarget);
+ const lastReps = parseFloat(last.reps);
+ if (top && lastReps && lastReps < top) return lastKg + 'kg';
+
+ // Even then, only move if one real increment is a sensible jump. On light
+ // dumbbells the smallest plate is still a big percentage, so keep building reps.
+ const step = smallestIncrement(exerciseName);
+ if (step / lastKg > 0.10) return lastKg + 'kg';
+
+ return (lastKg + step).toFixed(1).replace('.0', '') + 'kg';
 }
 
 function getProgressionBadge(exerciseName, currentWeight) {
@@ -2396,8 +2485,8 @@ function getProgressionBadge(exerciseName, currentWeight) {
  const lastKg = parseFloat(last.weight);
  const currKg = parseFloat(currentWeight);
  if (!lastKg || !currKg) return `<span style="color:var(--text-faint);font-size:10px">Last: ${last.weight}kg</span>`;
- if (currKg > lastKg) return `<span style="color:#4ade80;font-size:10px;font-weight:700">↑ PB pace vs ${last.weight}kg</span>`;
- if (currKg === lastKg) return `<span style="color:#f59e0b;font-size:10px;font-weight:700">= Same as last time</span>`;
+ if (currKg > lastKg) return `<span style="color:#4ade80;font-size:10px;font-weight:700">↑ Up from ${last.weight}kg</span>`;
+ if (currKg === lastKg) return `<span style="color:#f59e0b;font-size:10px;font-weight:700">Same weight — beat your reps</span>`;
  return `<span style="color:var(--text-faint);font-size:10px">Last: ${last.weight}kg</span>`;
 }
 
