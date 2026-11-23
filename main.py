@@ -1115,9 +1115,15 @@ def _email_worker():
                     if st.get('emailsOff'):
                         continue
                     sent = st.get('emailsSent') or []
+                    # Date them from when they asked for emails, not from when
+                    # the row happened to be created. A row can predate the
+                    # signup by months — someone who generated a plan in July
+                    # and handed over their address in November was treated as
+                    # four months into a six-week sequence and got nothing.
+                    anchor_date = st.get('emailSeqStart') or (u.get('created_at') or '')
                     try:
                         joined = datetime.fromisoformat(
-                            (u.get('created_at') or '').replace('Z', '+00:00')).date()
+                            str(anchor_date).replace('Z', '+00:00')).date()
                     except Exception:
                         continue
                     age = (today - joined).days
@@ -2217,6 +2223,33 @@ def lookup_referral_status():
     except Exception as e:
         return cors(jsonify({'error': str(e)})), 500
 
+# Keys the SERVER owns and the browser never sends back. The client posts its
+# whole state blob and the write replaces the column outright, so every single
+# save wiped these. Two real consequences: a person who unsubscribed had that
+# undone the next time they opened the app, and the record of which emails had
+# already gone out was lost, so the sequence could send them again.
+SERVER_OWNED_STATE_KEYS = ('emailsSent', 'emailsOff', 'emailSeqStart')
+
+
+def _keep_server_keys(email, incoming):
+    """Carry the server-owned keys across a client save."""
+    merged = dict(incoming or {})
+    try:
+        r = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+            headers=SUPABASE_HEADERS, timeout=10)
+        rows = r.json() if r.status_code == 200 else []
+    except Exception as e:
+        print(f'[state] WARNING could not read existing state for {email}: {e} '
+              f'- server-owned keys may be lost on this save')
+        return merged
+    existing = (rows[0].get('state') or {}) if rows else {}
+    for k in SERVER_OWNED_STATE_KEYS:
+        if k in existing:
+            merged[k] = existing[k]
+    return merged
+
+
 @app.route('/api/state/save', methods=['POST', 'OPTIONS'])
 def save_state():
     if request.method == 'OPTIONS':
@@ -2234,7 +2267,7 @@ def save_state():
         if state_probe_blocked(client_ip(), email):
             print(f'[state] enumeration blocked from {client_ip()}')
             return cors(jsonify({'error': 'Too many requests'})), 429
-        state = body.get('state', {})
+        state = _keep_server_keys(email, body.get('state', {}))
         plan = body.get('plan')
         # The plan goes in the `plan` column. It was previously written to
         # `tier` — the subscription column — which corrupted a paying user's
@@ -2355,6 +2388,55 @@ def get_reviews():
 
 # ─── EMAIL OCTOPUS WELCOME ────────────────────────────────────────────────────
 
+def _start_email_sequence(email, name=''):
+    """Send the welcome straight away and anchor the sequence to now.
+
+    Returns quietly on any failure: a signup must never fail because the
+    mailbox is down.
+    """
+    try:
+        r = requests.get(
+            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+            headers=SUPABASE_HEADERS, timeout=10)
+        rows = r.json() if r.status_code == 200 else []
+        st = (rows[0].get('state') or {}) if rows else {}
+    except Exception as e:
+        print(f'[subscribe] could not read state for {email}: {e}')
+        return
+    if st.get('emailsOff'):
+        print(f'[subscribe] {email} has opted out - no welcome sent')
+        return
+    sent = st.get('emailsSent') or []
+    # Re-entering an address on a device they already signed up from should not
+    # welcome them twice.
+    if 'welcome' in sent:
+        print(f'[subscribe] {email} already had the welcome')
+        return
+    if not SMTP_PASS:
+        print(f'[subscribe] mailbox password not set - no welcome sent to {email}')
+        return
+    composed = _compose('welcome', _plan_facts(st))
+    if not composed:
+        return
+    subject, body = composed
+    try:
+        _send_email(email, subject, body)
+    except Exception as e:
+        print(f'[subscribe] welcome FAILED for {email}: {e}')
+        return
+    sent.append('welcome')
+    st['emailsSent'] = sent
+    st['emailSeqStart'] = datetime.now(UK_TZ).date().isoformat()
+    try:
+        requests.post(f'{SUPABASE_URL}/rest/v1/ptrain_users?on_conflict=email',
+                      headers={**SUPABASE_HEADERS,
+                               'Prefer': 'resolution=merge-duplicates'},
+                      json={'email': email, 'state': st}, timeout=15)
+    except Exception as e:
+        print(f'[subscribe] welcome sent to {email} but not recorded: {e}')
+    print(f'[email] welcome -> {email} (sent at signup)')
+
+
 @app.route('/api/email/subscribe', methods=['POST', 'OPTIONS'])
 def subscribe():
     if request.method == 'OPTIONS':
@@ -2384,7 +2466,16 @@ def subscribe():
         )
         print(f'[subscribe] EmailOctopus said {r.status_code}: {r.text[:200]}')
 
-        print(f'Welcome email queued for {email}')
+        # The welcome used to be left to the hourly worker, which logged
+        # "Welcome email queued" without queueing anything. Someone handing over
+        # their address to get a free plan waited up to an hour for the first
+        # word back — and if their row already existed from an earlier visit,
+        # the worker dated them from that old row, judged them months past every
+        # step of the sequence, and sent nothing at all. Ever.
+        #
+        # So: send it now, record it, and stamp when the sequence starts so the
+        # rest of it runs from this signup rather than from a stale row.
+        _start_email_sequence(email, name)
         return cors(jsonify({'ok': True}))
     except Exception as e:
         return cors(jsonify({'error': str(e)})), 500
