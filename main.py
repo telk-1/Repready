@@ -2719,6 +2719,17 @@ def _start_workers():
     threading.Thread(target=_email_worker, daemon=True).start()
     threading.Thread(target=_weekly_digest_worker, daemon=True).start()
     threading.Thread(target=_activation_worker, daemon=True).start()
+    # Whether the mailbox is configured decides silently whether a signup ever
+    # gets a welcome, and nothing said so either way: the question "is email
+    # actually on in production" could only be answered by waiting for someone
+    # to sign up. Booleans only — never a key, a password or any part of one.
+    print('[boot] mailbox=%s supabase=%s anthropic=%s stripe=%s emailoctopus=%s auth_enforced=%s'
+          % (bool(SMTP_PASS), bool(SUPABASE_KEY), bool(ANTHROPIC_API_KEY),
+             bool(STRIPE_SECRET_KEY), bool(EO_API_KEY), AUTH_ENFORCED), flush=True)
+    if not SMTP_PASS:
+        print('[boot] WARNING no mailbox password set - no welcome, sign-in or '
+              'sequence email can be sent, and signups will look silently broken',
+              flush=True)
 
 _start_workers()
 
