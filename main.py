@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory, redirect
 import requests
 import os
 import json
+import re
 import hmac
 import hashlib
 import secrets
@@ -916,9 +917,42 @@ def _first_name(state_blob):
         return ''
     return raw.split()[0][:24]
 
-def _plan_facts(state_blob):
-    """Whatever we honestly know about this person's plan."""
-    snap = ((state_blob.get('plan') or {}).get('formSnapshot') or {})
+# Someone twenty minutes from the gym floor can become a one-to-one client at
+# four figures. Someone in Ohio never can. Nothing in the product knew the
+# difference, so every signup was treated as a few-pounds-a-month lead.
+LONDON_HINTS = (
+    'london', 'shoreditch', 'hackney', 'islington', 'camden', 'westminster',
+    'southwark', 'lambeth', 'wandsworth', 'fulham', 'chelsea', 'kensington',
+    'clapham', 'brixton', 'peckham', 'dalston', 'stratford', 'canary wharf',
+    'bermondsey', 'battersea', 'ealing', 'croydon', 'barnet', 'greenwich',
+    'lewisham', 'tower hamlets', 'hammersmith', 'richmond', 'wimbledon',
+    'finsbury', 'holborn', 'soho', 'mayfair', 'city of london',
+)
+_LONDON_POSTCODE_AREAS = {
+    'E', 'EC', 'N', 'NW', 'SE', 'SW', 'W', 'WC',
+    'BR', 'CR', 'DA', 'EN', 'HA', 'IG', 'KT', 'RM', 'SM', 'TW', 'UB', 'WD'}
+
+
+def _is_london(value):
+    v = str(value or '').strip().lower()
+    if not v:
+        return False
+    if any(h in v for h in LONDON_HINTS):
+        return True
+    m = re.match(r'^([a-z]{1,2})\d', v)
+    return bool(m and m.group(1).upper() in _LONDON_POSTCODE_AREAS)
+
+
+def _plan_facts(state_blob, plan=None):
+    """Whatever we honestly know about this person's plan.
+
+    The plan is stored in its own column, never inside the state blob, so
+    reading it from state found nothing every single time: every sequence
+    email went out with the goal, equipment and training style blank, and
+    everyone sat on the slow cadence because the style that selects the fast
+    one was never visible.
+    """
+    snap = (((plan or state_blob.get('plan')) or {}).get('formSnapshot') or {})
     style = str(snap.get('style') or '').strip()
     return {
         'name': _first_name(state_blob),
@@ -928,7 +962,9 @@ def _plan_facts(state_blob):
         'style': style,
         'fast_cycle': any(k in style.lower() for k in ('crossfit', 'hyrox', 'hiit', 'circuit')),
         'sessions': len(state_blob.get('history') or []),
-        'has_plan': bool((state_blob.get('plan') or {}).get('days')),
+        'has_plan': bool(((plan or state_blob.get('plan')) or {}).get('days')),
+        'location': str(snap.get('location') or '').strip(),
+        'is_london': _is_london(snap.get('location')),
     }
 
 def _greeting(f):
@@ -938,7 +974,34 @@ SIGNOFF = "\n\nTel\nptrain.app"
 FULL_SIGNOFF = ("\n\nTel Kershaw\nCertified PT · 8 years at Gymbox London · REPs Registered"
                 "\nptrain.app")
 
+# Two of the seven steps say the one thing the sequence never said: that he is
+# a London trainer who takes clients. Day 5 is early enough to matter while
+# they are still engaged; day 25 is their block finishing, which is the natural
+# moment to ask what comes next. The other five are left alone — a sequence
+# that pitches in every email stops being worth opening.
+LONDON_STEPS = ('logging', 'block_end')
+LONDON_PARAGRAPH = (
+    "\n\nOne more thing, since you're in London. I coach on the gym floor at "
+    "Gymbox and I take a small number of one-to-one clients. If you'd rather "
+    "have someone watching the lifts than reading them off a screen, just reply "
+    "to this and tell me what you're after. It comes straight to me.")
+
+
 def _compose(step, f):
+    """Compose the step, then add the in-person line for people near the gym."""
+    composed = _compose_base(step, f)
+    if not composed or step not in LONDON_STEPS or not f.get('is_london'):
+        return composed
+    subject, body = composed
+    # Slot it above the sign-off rather than after it, so the email still ends
+    # the way a letter ends.
+    for tail in (FULL_SIGNOFF, SIGNOFF):
+        if body.endswith(tail):
+            return (subject, body[:-len(tail)] + LONDON_PARAGRAPH + tail)
+    return (subject, body + LONDON_PARAGRAPH)
+
+
+def _compose_base(step, f):
     """Each email is written from what this person actually did. Anything we
     don't know is simply left out rather than guessed at."""
     g = _greeting(f)
@@ -1079,16 +1142,26 @@ carry on using the app whenever you like.</div>
 <a href="https://ptrain.app" style="display:inline-block;margin-top:22px;color:#ff5a1f;font-weight:700;
 text-decoration:none;font-size:14px">Back to PTrain</a></body>"""
 
-def _send_email(to_addr, subject, body):
+def _send_email(to_addr, subject, body, reply_to=None, marketing=True):
+    """Send one message.
+
+    `reply_to` lets an enquiry notification reply straight to the person who
+    made it rather than back to Tel's own mailbox. `marketing=False` drops the
+    signup-and-unsubscribe footer, which is required on sequence email and
+    plainly wrong on a notification Tel is sending to himself — he did not
+    sign up for his own enquiries and cannot unsubscribe from them.
+    """
     if not SMTP_PASS:
         raise RuntimeError('PRIVATE_EMAIL_PASSWORD not set')
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = f'Tel at PTrain <{SMTP_USER}>'
     msg['To'] = to_addr
-    msg['Reply-To'] = SMTP_USER
-    footer = (f"\n\n—\nYou're getting this because you signed up at ptrain.app."
-              f"\nStop these emails: https://ptrain.app/unsubscribe?e={to_addr}&t={_unsub_token(to_addr)}")
+    msg['Reply-To'] = reply_to or SMTP_USER
+    footer = ''
+    if marketing:
+        footer = (f"\n\n—\nYou're getting this because you signed up at ptrain.app."
+                  f"\nStop these emails: https://ptrain.app/unsubscribe?e={to_addr}&t={_unsub_token(to_addr)}")
     msg.set_content(body + footer)
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20) as s:
         s.login(SMTP_USER, SMTP_PASS)
@@ -1103,7 +1176,7 @@ def _email_worker():
         try:
             if SMTP_PASS:
                 r = requests.get(
-                    f'{SUPABASE_URL}/rest/v1/ptrain_users?select=email,state,created_at',
+                    f'{SUPABASE_URL}/rest/v1/ptrain_users?select=email,state,created_at,plan',
                     headers=SUPABASE_HEADERS, timeout=20)
                 users = r.json() if r.status_code == 200 else []
                 today = datetime.now(UK_TZ).date()
@@ -1127,7 +1200,7 @@ def _email_worker():
                     except Exception:
                         continue
                     age = (today - joined).days
-                    f = _plan_facts(st)
+                    f = _plan_facts(st, u.get('plan'))
                     seq = SEQUENCE_FAST if f['fast_cycle'] else SEQUENCE_STANDARD
 
                     for day, key in seq:
@@ -2396,10 +2469,11 @@ def _start_email_sequence(email, name=''):
     """
     try:
         r = requests.get(
-            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+            f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state,plan',
             headers=SUPABASE_HEADERS, timeout=10)
         rows = r.json() if r.status_code == 200 else []
         st = (rows[0].get('state') or {}) if rows else {}
+        plan = (rows[0].get('plan') if rows else None)
     except Exception as e:
         print(f'[subscribe] could not read state for {email}: {e}')
         return
@@ -2415,7 +2489,7 @@ def _start_email_sequence(email, name=''):
     if not SMTP_PASS:
         print(f'[subscribe] mailbox password not set - no welcome sent to {email}')
         return
-    composed = _compose('welcome', _plan_facts(st))
+    composed = _compose('welcome', _plan_facts(st, plan))
     if not composed:
         return
     subject, body = composed
@@ -2435,6 +2509,105 @@ def _start_email_sequence(email, name=''):
     except Exception as e:
         print(f'[subscribe] welcome sent to {email} but not recorded: {e}')
     print(f'[email] welcome -> {email} (sent at signup)')
+
+
+# Someone near the gym floor asking to train in person is worth four figures,
+# and until now the product had nowhere for them to say so: no consultation,
+# no booking, no way to reach Tel at all. This puts the enquiry straight into
+# his inbox while the person is still interested.
+_enquiry_recent = {}
+_enquiry_lock = threading.Lock()
+
+
+@app.route('/api/enquiry', methods=['POST', 'OPTIONS'])
+def enquiry():
+    if request.method == 'OPTIONS':
+        return cors(jsonify({'ok': True}))
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        email = str(body.get('email', '')).strip().lower()
+        name = str(body.get('name', '')).strip()[:80]
+        message = str(body.get('message', '')).strip()[:2000]
+        location = str(body.get('location', '')).strip()[:120]
+        source = str(body.get('source', '')).strip()[:40]
+        if '@' not in email or len(email) > 254:
+            return cors(jsonify({'error': 'Enter a valid email'})), 400
+
+        # One enquiry per address per ten minutes: enough for a genuine
+        # follow-up, not enough to use the mailbox as a relay.
+        now = time.time()
+        with _enquiry_lock:
+            last = _enquiry_recent.get(email, 0)
+            if now - last < 600:
+                return cors(jsonify({'ok': True, 'duplicate': True}))
+            _enquiry_recent[email] = now
+            if len(_enquiry_recent) > 2000:
+                for k in [k for k, v in list(_enquiry_recent.items())
+                          if now - v > 3600][:500]:
+                    _enquiry_recent.pop(k, None)
+
+        # What they already told the app, so Tel opens the email knowing who
+        # this is rather than starting from a name and an address.
+        facts = {}
+        try:
+            r = requests.get(
+                f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state,plan',
+                headers=SUPABASE_HEADERS, timeout=10)
+            rows = r.json() if r.status_code == 200 else []
+            if rows:
+                facts = _plan_facts(rows[0].get('state') or {}, rows[0].get('plan'))
+        except Exception as e:
+            print(f'[enquiry] could not read profile for {email}: {e}')
+
+        lines = [f'{name or "Someone"} wants to train with you.', '',
+                 f'Name:     {name or "(not given)"}',
+                 f'Email:    {email}',
+                 f'Where:    {location or "(not given)"}']
+        if facts.get('goal'):
+            lines.append(f'Goal:     {facts["goal"]}')
+        if facts.get('style'):
+            lines.append(f'Training: {facts["style"]}')
+        if facts.get('days'):
+            lines.append(f'Days:     {facts["days"]} a week')
+        if facts.get('sessions'):
+            lines.append(f'Logged:   {facts["sessions"]} sessions in the app')
+        if source:
+            lines.append(f'Came via: {source}')
+        if message:
+            lines += ['', 'What they said:', message]
+        lines += ['', f'Reply straight to this email to answer {name or "them"}.']
+
+        subject = f'PT enquiry - {name or email}' + (' (London)' if _is_london(location) else '')
+        try:
+            _send_email(SMTP_USER, subject, '\n'.join(lines),
+                        reply_to=email, marketing=False)
+            print(f'[enquiry] {email} -> inbox ({location or "no location"})')
+        except Exception as e:
+            print(f'[enquiry] FAILED to deliver {email}: {e}')
+            return cors(jsonify({'error': 'Could not send just now'})), 502
+
+        # Record it so an enquiry is never lost if the mailbox is unread.
+        try:
+            r = requests.get(
+                f'{SUPABASE_URL}/rest/v1/ptrain_users?email=eq.{email}&select=state',
+                headers=SUPABASE_HEADERS, timeout=10)
+            rows = r.json() if r.status_code == 200 else []
+            st = (rows[0].get('state') or {}) if rows else {}
+            enq = st.get('enquiries') or []
+            enq.append({'at': datetime.now(UK_TZ).isoformat(), 'location': location,
+                        'source': source, 'message': message[:500]})
+            st['enquiries'] = enq[-10:]
+            requests.post(f'{SUPABASE_URL}/rest/v1/ptrain_users?on_conflict=email',
+                          headers={**SUPABASE_HEADERS,
+                                   'Prefer': 'resolution=merge-duplicates'},
+                          json={'email': email, 'state': st}, timeout=15)
+        except Exception as e:
+            print(f'[enquiry] delivered but not recorded for {email}: {e}')
+
+        return cors(jsonify({'ok': True}))
+    except Exception as e:
+        print(f'[enquiry] {e}')
+        return cors(jsonify({'error': 'Something went wrong'})), 500
 
 
 @app.route('/api/email/subscribe', methods=['POST', 'OPTIONS'])
