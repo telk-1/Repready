@@ -981,10 +981,11 @@ FULL_SIGNOFF = ("\n\nTel Kershaw\nCertified PT · 8 years at Gymbox London · RE
 # that pitches in every email stops being worth opening.
 LONDON_STEPS = ('logging', 'block_end')
 LONDON_PARAGRAPH = (
-    "\n\nOne more thing, since you're in London. I coach on the gym floor at "
-    "Gymbox and I take a small number of one-to-one clients. If you'd rather "
-    "have someone watching the lifts than reading them off a screen, just reply "
-    "to this and tell me what you're after. It comes straight to me.")
+    "\n\nOne more thing, since you're in London. I can get you in to Gymbox "
+    "for a fitness screening, a session on the floor with me and a proper "
+    "sit-down about where you want to get to. You don't need to be a member to "
+    "come in. Reply to this with the days that suit you and I'll sort the rest "
+    "\u2014 it comes straight to me.")
 
 
 def _compose(step, f):
